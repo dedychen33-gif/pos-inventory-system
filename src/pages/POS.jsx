@@ -35,6 +35,7 @@ export default function POS() {
   const [cashAmount, setCashAmount] = useState('')
   const [remoteScanEnabled, setRemoteScanEnabled] = useState(false)
   const [lastRemoteScan, setLastRemoteScan] = useState(null)
+  const [isProcessing, setIsProcessing] = useState(false)
   
   const searchInputRef = useRef(null)
   
@@ -155,7 +156,7 @@ export default function POS() {
     setShowPaymentModal(true)
   }
 
-  const handleCompleteTransaction = () => {
+  const handleCompleteTransaction = async () => {
     const total = getTotal()
     const cash = parseFloat(cashAmount) || 0
     
@@ -164,33 +165,43 @@ export default function POS() {
       return
     }
 
-    // Create transaction
-    const transaction = {
-      items: cartItems,
-      customer: selectedCustomer,
-      subtotal: getSubtotal(),
-      discount: getDiscount(),
-      tax: getTax(),
-      total: total,
-      paymentMethod: paymentMethod,
-      cashAmount: paymentMethod === 'cash' ? cash : total,
-      change: paymentMethod === 'cash' ? cash - total : 0,
-      cashierName: user?.name || 'Kasir'
+    setIsProcessing(true)
+
+    try {
+      // Create transaction
+      const transaction = {
+        items: cartItems,
+        customer: selectedCustomer,
+        subtotal: getSubtotal(),
+        discount: getDiscount(),
+        tax: getTax(),
+        total: total,
+        paymentMethod: paymentMethod,
+        cashAmount: paymentMethod === 'cash' ? cash : total,
+        change: paymentMethod === 'cash' ? cash - total : 0,
+        cashierName: user?.name || 'Kasir',
+        cashierId: user?.id
+      }
+
+      // Update stock with history tracking (reason: 'sale')
+      for (const item of cartItems) {
+        await updateStock(item.id, item.quantity, 'subtract', 'sale', `Penjualan`, user?.id)
+      }
+
+      // Save transaction
+      const savedTransaction = await addTransaction(transaction)
+      
+      setLastTransaction(savedTransaction)
+      setShowPaymentModal(false)
+      setShowReceiptModal(true)
+      clearCart()
+      setCashAmount('')
+    } catch (error) {
+      console.error('Transaction error:', error)
+      alert('Gagal memproses transaksi: ' + error.message)
+    } finally {
+      setIsProcessing(false)
     }
-
-    // Update stock with history tracking (reason: 'sale')
-    cartItems.forEach((item) => {
-      updateStock(item.id, item.quantity, 'subtract', 'sale', `Penjualan #${transaction.id}`, user?.id)
-    })
-
-    // Save transaction
-    const savedTransaction = addTransaction(transaction)
-    
-    setLastTransaction(savedTransaction)
-    setShowPaymentModal(false)
-    setShowReceiptModal(true)
-    clearCart()
-    setCashAmount('')
   }
 
   const handlePrintReceipt = () => {
@@ -565,10 +576,20 @@ export default function POS() {
 
             <button
               onClick={handleCompleteTransaction}
-              className="w-full btn btn-success py-3"
+              disabled={isProcessing}
+              className="w-full btn btn-success py-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Check size={20} />
-              Selesaikan Transaksi
+              {isProcessing ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <Check size={20} />
+                  Selesaikan Transaksi
+                </>
+              )}
             </button>
           </div>
         </Modal>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight, Download, FileSpreadsheet } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
+import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
 import BarcodeScanner from '../components/BarcodeScanner'
 import BarcodeGenerator, { BarcodeImage } from '../components/BarcodeGenerator'
@@ -72,8 +73,103 @@ export default function Products() {
   const [showBarcodeModal, setShowBarcodeModal] = useState(false)
   const [selectedProductBarcode, setSelectedProductBarcode] = useState(null)
   const [expandedProducts, setExpandedProducts] = useState({}) // Track expanded variant groups
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importData, setImportData] = useState([])
+  const [isImporting, setIsImporting] = useState(false)
   
   const { products, categories, addProduct, updateProduct, deleteProduct } = useProductStore()
+  const { user } = useAuthStore()
+
+  // Download CSV template for bulk import
+  const handleDownloadTemplate = () => {
+    const csvContent = 'nama,sku,barcode,kategori,satuan,harga_jual,harga_beli,stok,stok_minimum,deskripsi\nContoh Produk,SKU001,123456789,Makanan,pcs,15000,10000,100,10,Deskripsi produk\n'
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = 'template-import-produk.csv'
+    link.click()
+  }
+
+  // Handle CSV file import
+  const handleFileImport = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result
+        const lines = text.split('\n').filter(line => line.trim())
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+        
+        const data = []
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim())
+          if (values.length >= 2) {
+            const product = {
+              name: values[headers.indexOf('nama')] || values[0],
+              sku: values[headers.indexOf('sku')] || generateSKU(),
+              barcode: values[headers.indexOf('barcode')] || generateBarcode(),
+              category: values[headers.indexOf('kategori')] || 'Lainnya',
+              unit: values[headers.indexOf('satuan')] || 'pcs',
+              price: parseFloat(values[headers.indexOf('harga_jual')]) || 0,
+              cost: parseFloat(values[headers.indexOf('harga_beli')]) || 0,
+              stock: parseInt(values[headers.indexOf('stok')]) || 0,
+              minStock: parseInt(values[headers.indexOf('stok_minimum')]) || 5,
+              description: values[headers.indexOf('deskripsi')] || ''
+            }
+            data.push(product)
+          }
+        }
+        
+        setImportData(data)
+        setShowImportModal(true)
+      } catch (error) {
+        alert('Format file tidak valid: ' + error.message)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  // Process bulk import
+  const handleBulkImport = async () => {
+    setIsImporting(true)
+    let imported = 0
+    
+    try {
+      for (const product of importData) {
+        await addProduct({
+          ...product,
+          code: `PRD${String(products.length + imported + 1).padStart(3, '0')}`,
+          source: 'local'
+        }, user?.id, user?.name)
+        imported++
+      }
+      
+      alert(`Berhasil import ${imported} produk!`)
+      setShowImportModal(false)
+      setImportData([])
+    } catch (error) {
+      alert('Gagal import: ' + error.message)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  // Export all products to CSV
+  const handleExportProducts = () => {
+    let csvContent = 'kode,nama,sku,barcode,kategori,satuan,harga_jual,harga_beli,stok,stok_minimum,deskripsi\n'
+    products.forEach(p => {
+      csvContent += `${p.code || ''},${p.name || ''},${p.sku || ''},${p.barcode || ''},${p.category || ''},${p.unit || ''},${p.price || 0},${p.cost || 0},${p.stock || 0},${p.minStock || 0},"${(p.description || '').replace(/"/g, '""')}"\n`
+    })
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `produk-export-${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
 
   // Handle barcode scan result
   const handleBarcodeScan = (barcode) => {
@@ -258,13 +354,106 @@ export default function Products() {
         </div>
       )}
 
+      {/* Import Preview Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b">
+              <div>
+                <h3 className="text-xl font-bold">Preview Import</h3>
+                <p className="text-gray-600 text-sm">{importData.length} produk akan diimport</p>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="text-gray-500">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">#</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Nama</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">SKU</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Kategori</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Harga</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Stok</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {importData.map((p, idx) => (
+                    <tr key={idx}>
+                      <td className="px-3 py-2 text-sm text-gray-500">{idx + 1}</td>
+                      <td className="px-3 py-2 text-sm font-medium">{p.name}</td>
+                      <td className="px-3 py-2 text-sm text-gray-500">{p.sku}</td>
+                      <td className="px-3 py-2 text-sm text-gray-500">{p.category}</td>
+                      <td className="px-3 py-2 text-sm text-right">Rp {p.price?.toLocaleString('id-ID')}</td>
+                      <td className="px-3 py-2 text-sm text-right">{p.stock}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 p-6 border-t bg-gray-50">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="btn btn-secondary flex-1"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleBulkImport}
+                disabled={isImporting}
+                className="btn btn-success flex-1 disabled:opacity-50"
+              >
+                {isImporting ? 'Memproses...' : `Import ${importData.length} Produk`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Master Produk</h1>
           <p className="text-gray-600 mt-1">Database produk lokal & Marketplace (tersimpan di perangkat)</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {/* Import/Export Buttons */}
+          <div className="flex gap-1">
+            <button
+              onClick={handleExportProducts}
+              className="btn btn-outline flex items-center gap-1"
+              title="Export ke CSV"
+            >
+              <Download size={18} />
+              <span className="hidden md:inline">Export</span>
+            </button>
+            <div className="relative">
+              <input
+                type="file"
+                id="csv-import"
+                accept=".csv"
+                onChange={handleFileImport}
+                className="hidden"
+              />
+              <label
+                htmlFor="csv-import"
+                className="btn btn-outline flex items-center gap-1 cursor-pointer"
+                title="Import dari CSV"
+              >
+                <Upload size={18} />
+                <span className="hidden md:inline">Import</span>
+              </label>
+            </div>
+            <button
+              onClick={handleDownloadTemplate}
+              className="btn btn-outline flex items-center gap-1"
+              title="Download Template CSV"
+            >
+              <FileSpreadsheet size={18} />
+            </button>
+          </div>
           {/* Scan Button - Android Only */}
           {isAndroid && (
             <button
