@@ -387,7 +387,7 @@ function TransactionsReport({ transactions, voidTransaction, updateStock, user, 
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-xl font-bold">Detail Transaksi</h3>
               <button
-                onClick={() => setShowDetailModal(false)}}
+                onClick={() => setShowDetailModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <XIcon size={24} />

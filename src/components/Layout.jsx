@@ -223,26 +223,27 @@ export default function Layout({ children }) {
           
           {/* Cloud sync indicator */}
           <div 
-          className="flex items-center gap-1" 
-          title={
-            syncStatus.isSyncing 
-              ? 'Syncing...' 
-              : syncStatus.isOnline 
-                ? `Cloud Sync Active${syncStatus.lastSync ? ` - Last: ${new Date(syncStatus.lastSync).toLocaleTimeString()}` : ''}`
-                : isSupabaseConfigured() 
-                  ? 'Connecting to cloud...'
-                  : 'Offline Mode'
-          }
-        >
-          {syncStatus.isSyncing ? (
-            <RefreshCw size={20} className="text-yellow-400 animate-spin" />
-          ) : syncStatus.isOnline ? (
-            <Cloud size={20} className="text-green-400" />
-          ) : isSupabaseConfigured() ? (
-            <Cloud size={20} className="text-yellow-400 animate-pulse" />
-          ) : (
-            <CloudOff size={20} className="text-gray-400" />
-          )}
+            className="flex items-center gap-1" 
+            title={
+              syncStatus.isSyncing 
+                ? 'Syncing...' 
+                : syncStatus.isOnline 
+                  ? `Cloud Sync Active${syncStatus.lastSync ? ` - Last: ${new Date(syncStatus.lastSync).toLocaleTimeString()}` : ''}`
+                  : isSupabaseConfigured() 
+                    ? 'Connecting to cloud...'
+                    : 'Offline Mode'
+            }
+          >
+            {syncStatus.isSyncing ? (
+              <RefreshCw size={20} className="text-yellow-400 animate-spin" />
+            ) : syncStatus.isOnline ? (
+              <Cloud size={20} className="text-green-400" />
+            ) : isSupabaseConfigured() ? (
+              <Cloud size={20} className="text-yellow-400 animate-pulse" />
+            ) : (
+              <CloudOff size={20} className="text-gray-400" />
+            )}
+          </div>
         </div>
       </header>
 
