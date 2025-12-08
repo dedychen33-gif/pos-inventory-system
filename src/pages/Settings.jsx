@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag } from 'lucide-react'
+import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, MessageCircle } from 'lucide-react'
 import { useAuthStore, PERMISSION_LABELS } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useProductStore } from '../store/productStore'
@@ -16,13 +16,15 @@ export default function Settings() {
   const [userModalMode, setUserModalMode] = useState('add') // 'add' or 'edit'
   const [selectedUser, setSelectedUser] = useState(null)
   const { users, user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin } = useAuthStore()
-  const { storeInfo, updateStoreInfo, setLogo } = useSettingsStore()
+  const { storeInfo, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore()
   const { products } = useProductStore()
   const { customers } = useCustomerStore()
   const { transactions } = useTransactionStore()
   const { purchases, suppliers } = usePurchaseStore()
   const { cartItems } = useCartStore()
   const [formData, setFormData] = useState(storeInfo)
+  const [stockFormData, setStockFormData] = useState(stockSettings || { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 })
+  const [waFormData, setWaFormData] = useState({ number: whatsappNumber || '', message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' })
 
   const handleBackupDatabase = () => {
     const backupData = {
@@ -261,6 +263,137 @@ export default function Settings() {
               />
             </div>
             <button onClick={handleSaveStoreInfo} className="btn btn-primary">Simpan Informasi</button>
+          </div>
+        </div>
+
+        {/* Stock Settings for Marketplace */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Package className="text-primary" size={24} />
+            <h3 className="text-lg font-bold">Pengaturan Stok Marketplace</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <Info size={14} className="inline mr-1" />
+                Buffer stok mencegah overselling di marketplace dengan menyisihkan sejumlah stok sebagai cadangan.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Buffer Stok (%)</label>
+              <input 
+                type="number" 
+                min="0"
+                max="50"
+                value={stockFormData.bufferPercent}
+                onChange={(e) => setStockFormData({ ...stockFormData, bufferPercent: parseInt(e.target.value) || 0 })}
+                className="input" 
+              />
+              <p className="text-xs text-gray-500 mt-1">Persentase stok yang dicadangkan (default: 10%)</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Minimum Buffer (pcs)</label>
+              <input 
+                type="number"
+                min="0"
+                max="100"
+                value={stockFormData.minBuffer}
+                onChange={(e) => setStockFormData({ ...stockFormData, minBuffer: parseInt(e.target.value) || 0 })}
+                className="input" 
+              />
+              <p className="text-xs text-gray-500 mt-1">Minimal stok cadangan walaupun % rendah (default: 3 pcs)</p>
+            </div>
+            <div>
+              <label className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  checked={stockFormData.enableAutoSync}
+                  onChange={(e) => setStockFormData({ ...stockFormData, enableAutoSync: e.target.checked })}
+                  className="w-4 h-4" 
+                />
+                <span>Auto-sync stok ke marketplace</span>
+              </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Interval Sync (menit)</label>
+              <input 
+                type="number"
+                min="5"
+                max="120"
+                value={stockFormData.syncInterval}
+                onChange={(e) => setStockFormData({ ...stockFormData, syncInterval: parseInt(e.target.value) || 30 })}
+                className="input" 
+                disabled={!stockFormData.enableAutoSync}
+              />
+            </div>
+            <button 
+              onClick={() => {
+                updateStockSettings(stockFormData)
+                alert('Pengaturan stok marketplace berhasil disimpan!')
+              }}
+              className="btn btn-primary"
+            >
+              Simpan Pengaturan Stok
+            </button>
+          </div>
+        </div>
+
+        {/* WhatsApp Customer Service */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <MessageCircle className="text-green-500" size={24} />
+            <h3 className="text-lg font-bold">WhatsApp Customer Service</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-800">
+                <Info size={14} className="inline mr-1" />
+                Tambahkan nomor WhatsApp CS untuk tombol kontak cepat di dashboard dan struk.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Nomor WhatsApp</label>
+              <input 
+                type="tel" 
+                placeholder="6281234567890"
+                value={waFormData.number}
+                onChange={(e) => setWaFormData({ ...waFormData, number: e.target.value })}
+                className="input" 
+              />
+              <p className="text-xs text-gray-500 mt-1">Format: 628xxx (tanpa + atau 0 di depan)</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Pesan Default</label>
+              <textarea 
+                rows="3"
+                placeholder="Halo, saya ingin bertanya..."
+                value={waFormData.message}
+                onChange={(e) => setWaFormData({ ...waFormData, message: e.target.value })}
+                className="input" 
+              />
+            </div>
+            {waFormData.number && (
+              <div className="flex gap-2">
+                <a 
+                  href={`https://wa.me/${waFormData.number.replace(/\\D/g, '')}?text=${encodeURIComponent(waFormData.message)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-success flex items-center gap-2"
+                >
+                  <MessageCircle size={16} />
+                  Test WhatsApp
+                </a>
+              </div>
+            )}
+            <button 
+              onClick={() => {
+                updateWhatsApp(waFormData.number, waFormData.message)
+                alert('Pengaturan WhatsApp berhasil disimpan!')
+              }}
+              className="btn btn-primary"
+            >
+              Simpan Pengaturan WhatsApp
+            </button>
           </div>
         </div>
 

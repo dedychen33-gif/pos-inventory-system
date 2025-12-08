@@ -178,9 +178,9 @@ export default function POS() {
       cashierName: user?.name || 'Kasir'
     }
 
-    // Update stock
+    // Update stock with history tracking (reason: 'sale')
     cartItems.forEach((item) => {
-      updateStock(item.id, item.quantity, 'subtract')
+      updateStock(item.id, item.quantity, 'subtract', 'sale', `Penjualan #${transaction.id}`, user?.id)
     })
 
     // Save transaction

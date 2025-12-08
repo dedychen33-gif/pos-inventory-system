@@ -6,21 +6,40 @@ import {
   AlertTriangle,
   DollarSign,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Bell,
+  X,
+  MessageCircle
 } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { useProductStore } from '../store/productStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useCustomerStore } from '../store/customerStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
   const { products, getLowStockProducts } = useProductStore()
   const { transactions, getTodaySales, getTodayTransactions } = useTransactionStore()
   const { customers } = useCustomerStore()
+  const { whatsappNumber, getWhatsAppLink } = useSettingsStore()
+  
+  const [showLowStockAlert, setShowLowStockAlert] = useState(false)
+  const [dismissedAlerts, setDismissedAlerts] = useState([])
 
   const todaySales = getTodaySales()
   const todayTransactions = getTodayTransactions()
   const lowStockProducts = getLowStockProducts()
+  
+  // Products with zero stock (critical)
+  const outOfStockProducts = products.filter(p => p.stock === 0)
+  
+  // Show alert banner if there are critical stock issues
+  useEffect(() => {
+    if (outOfStockProducts.length > 0 || lowStockProducts.length > 0) {
+      setShowLowStockAlert(true)
+    }
+  }, [outOfStockProducts.length, lowStockProducts.length])
 
   const stats = [
     {
@@ -66,6 +85,54 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Critical Stock Alert Banner */}
+      {showLowStockAlert && (outOfStockProducts.length > 0 || lowStockProducts.length > 0) && (
+        <div className={`${outOfStockProducts.length > 0 ? 'bg-red-500' : 'bg-orange-500'} text-white p-4 rounded-xl flex items-center justify-between animate-pulse`}>
+          <div className="flex items-center gap-3">
+            <Bell size={24} />
+            <div>
+              <p className="font-bold">
+                {outOfStockProducts.length > 0 
+                  ? `⚠️ ${outOfStockProducts.length} produk HABIS!` 
+                  : `⚠️ ${lowStockProducts.length} produk stok menipis`}
+              </p>
+              <p className="text-sm opacity-90">
+                {outOfStockProducts.length > 0 
+                  ? 'Segera lakukan restock untuk produk yang sudah habis'
+                  : 'Beberapa produk mendekati batas minimum stok'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link 
+              to="/stock" 
+              className="bg-white text-gray-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100"
+            >
+              Lihat Detail
+            </Link>
+            <button 
+              onClick={() => setShowLowStockAlert(false)}
+              className="p-2 hover:bg-white/20 rounded-lg"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp CS Floating Button */}
+      {whatsappNumber && (
+        <a
+          href={getWhatsAppLink()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 bg-green-500 text-white p-4 rounded-full shadow-lg hover:bg-green-600 transition-colors z-50 flex items-center gap-2"
+          title="Hubungi Customer Service"
+        >
+          <MessageCircle size={24} />
+        </a>
+      )}
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>

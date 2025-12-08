@@ -11,6 +11,7 @@ export const useProductStore = create(
       products: initialProducts,
       categories: ['Makanan', 'Minuman', 'Snack', 'Sembako', 'Elektronik', 'Alat Tulis', 'Paket Bundling'],
       units: ['pcs', 'kg', 'box', 'pack', 'lusin', 'kodi', 'gross', 'paket'],
+      stockHistory: [], // History perubahan stok
       isOnline: false,
       isSyncing: false,
 
@@ -18,6 +19,7 @@ export const useProductStore = create(
       setProducts: (products) => set({ products }),
       setCategories: (categories) => set({ categories }),
       setUnits: (units) => set({ units }),
+      setStockHistory: (stockHistory) => set({ stockHistory }),
 
       // Initialize realtime subscription
       initRealtime: async () => {
@@ -233,27 +235,109 @@ export const useProductStore = create(
           await supabase.from('units').delete().eq('name', unit)
         }
       },
-      
-      updateStock: async (id, quantity, type = 'set') => {
-        const product = get().products.find(p => p.id === id)
-        if (!product) return
 
-        let newStock = product.stock
+      // Stock History Types:
+      // 'sale' - Penjualan POS
+      // 'purchase' - Pembelian/Restock
+      // 'adjustment' - Adjustment manual
+      // 'sync_marketplace' - Sync dari marketplace
+      // 'return' - Retur barang
+      // 'transfer' - Transfer antar gudang
+      
+      updateStock: async (id, quantity, type = 'set', reason = 'adjustment', note = '', userId = null) => {
+        const product = get().products.find(p => p.id === id)
+        if (!product) return { success: false, error: 'Product not found' }
+
+        const oldStock = product.stock
+        let newStock = oldStock
+        
         if (type === 'add') newStock += quantity
         else if (type === 'subtract') newStock -= quantity
         else newStock = quantity
         
         newStock = Math.max(0, newStock)
+        const change = newStock - oldStock
+
+        // Record stock history
+        const historyEntry = {
+          id: Date.now(),
+          productId: id,
+          productName: product.name,
+          productSku: product.sku || product.code,
+          oldStock,
+          newStock,
+          change,
+          type: reason, // 'sale', 'purchase', 'adjustment', 'sync_marketplace', 'return'
+          note,
+          userId,
+          createdAt: new Date().toISOString()
+        }
 
         // Update locally
         set((state) => ({
-          products: state.products.map((p) => p.id === id ? { ...p, stock: newStock } : p)
+          products: state.products.map((p) => p.id === id ? { ...p, stock: newStock } : p),
+          stockHistory: [historyEntry, ...state.stockHistory].slice(0, 1000) // Keep last 1000 entries
         }))
 
         // Sync to Supabase
         if (isSupabaseConfigured()) {
           await supabase.from('products').update({ stock: newStock }).eq('id', id)
+          // Optionally save stock history to Supabase
+          await supabase.from('stock_history').insert({
+            product_id: id,
+            old_stock: oldStock,
+            new_stock: newStock,
+            change,
+            type: reason,
+            note,
+            user_id: userId
+          }).catch(() => {}) // Ignore if table doesn't exist
         }
+
+        return { success: true, oldStock, newStock, change }
+      },
+
+      // Bulk update stock (untuk sync marketplace)
+      bulkUpdateStock: async (updates, reason = 'sync_marketplace', userId = null) => {
+        const results = []
+        for (const { productId, newStock, note } of updates) {
+          const result = await get().updateStock(productId, newStock, 'set', reason, note, userId)
+          results.push({ productId, ...result })
+        }
+        return results
+      },
+
+      // Get stock history for a product
+      getProductStockHistory: (productId) => {
+        return get().stockHistory.filter(h => h.productId === productId)
+      },
+
+      // Get stock history by type
+      getStockHistoryByType: (type) => {
+        return get().stockHistory.filter(h => h.type === type)
+      },
+
+      // Get stock history by date range
+      getStockHistoryByDateRange: (startDate, endDate) => {
+        const start = new Date(startDate).getTime()
+        const end = new Date(endDate).getTime()
+        return get().stockHistory.filter(h => {
+          const date = new Date(h.createdAt).getTime()
+          return date >= start && date <= end
+        })
+      },
+
+      // Clear old stock history (keep last N days)
+      clearOldStockHistory: (daysToKeep = 90) => {
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
+        const cutoffTime = cutoffDate.getTime()
+        
+        set((state) => ({
+          stockHistory: state.stockHistory.filter(h => 
+            new Date(h.createdAt).getTime() >= cutoffTime
+          )
+        }))
       },
       
       getProductByBarcode: (barcode) => {
