@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, MessageCircle } from 'lucide-react'
+import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, MessageCircle, FileText, Clock, Filter } from 'lucide-react'
 import { useAuthStore, PERMISSION_LABELS } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useProductStore } from '../store/productStore'
@@ -7,6 +7,7 @@ import { useCustomerStore } from '../store/customerStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useCartStore } from '../store/cartStore'
+import { useAuditStore, AUDIT_ACTIONS } from '../store/auditStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getSyncStatus, syncLocalToSupabase } from '../services/supabaseSync'
 
@@ -22,6 +23,7 @@ export default function Settings() {
   const { transactions } = useTransactionStore()
   const { purchases, suppliers } = usePurchaseStore()
   const { cartItems } = useCartStore()
+  const { logs, clearOldLogs, exportLogs } = useAuditStore()
   const [formData, setFormData] = useState(storeInfo)
   const [stockFormData, setStockFormData] = useState(stockSettings || { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 })
   const [waFormData, setWaFormData] = useState({ number: whatsappNumber || '', message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' })
@@ -639,6 +641,96 @@ export default function Settings() {
             </table>
           </div>
         </div>
+
+        {/* Audit Log */}
+        {isAdmin() && (
+          <div className="card md:col-span-2">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <FileText className="text-primary" size={24} />
+                <h3 className="text-lg font-bold">Audit Log</h3>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (confirm('Hapus log lama (lebih dari 30 hari)?')) {
+                      clearOldLogs(30)
+                      alert('Log lama berhasil dihapus')
+                    }
+                  }}
+                  className="btn btn-secondary text-sm"
+                >
+                  <Trash2 size={16} />
+                  Clear Old
+                </button>
+                <button
+                  onClick={() => {
+                    const jsonLogs = exportLogs()
+                    const blob = new Blob([jsonLogs], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = `audit-log-${new Date().toISOString().split('T')[0]}.json`
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="btn btn-primary text-sm"
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">Log aktivitas sistem (total: {logs.length})</p>
+            <div className="max-h-80 overflow-y-auto border rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Waktu</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Aksi</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">User</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Detail</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {logs.slice(0, 50).map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          log.action.includes('login') ? 'bg-blue-100 text-blue-800' :
+                          log.action.includes('transaction') ? 'bg-green-100 text-green-800' :
+                          log.action.includes('stock') ? 'bg-yellow-100 text-yellow-800' :
+                          log.action.includes('product') ? 'bg-purple-100 text-purple-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {log.action.replace('_', ' ').toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-600">
+                        {log.userName || '-'}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-gray-500 max-w-xs truncate" title={JSON.stringify(log.details)}>
+                        {log.details?.productName || log.details?.transactionId || log.details?.username || JSON.stringify(log.details).slice(0, 50)}
+                      </td>
+                    </tr>
+                  ))}
+                  {logs.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="px-4 py-8 text-center text-gray-500">
+                        Belum ada log aktivitas
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Backup & Restore Database */}
         <div className="card md:col-span-2">

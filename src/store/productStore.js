@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { useAuditStore, AUDIT_ACTIONS } from './auditStore'
 
 // Sample initial data (empty by default)
 const initialProducts = []
@@ -115,7 +116,7 @@ export const useProductStore = create(
         }
       },
       
-      addProduct: async (product) => {
+      addProduct: async (product, userId = null, userName = null) => {
         const newProduct = {
           ...product,
           id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -124,6 +125,21 @@ export const useProductStore = create(
 
         // Add locally first (optimistic update)
         set((state) => ({ products: [...state.products, newProduct] }))
+
+        // Audit log for product add
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.PRODUCT_ADD,
+          {
+            productId: newProduct.id,
+            productCode: newProduct.code,
+            productName: newProduct.name,
+            category: newProduct.category,
+            price: newProduct.price,
+            stock: newProduct.stock
+          },
+          userId,
+          userName
+        )
 
         // Sync to Supabase if configured
         if (isSupabaseConfigured()) {
@@ -152,11 +168,27 @@ export const useProductStore = create(
         }
       },
       
-      updateProduct: async (id, updatedProduct) => {
+      updateProduct: async (id, updatedProduct, userId = null, userName = null) => {
+        const oldProduct = get().products.find(p => p.id === id)
+        
         // Update locally first
         set((state) => ({
           products: state.products.map((p) => (p.id === id ? { ...p, ...updatedProduct } : p))
         }))
+
+        // Audit log for product edit
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.PRODUCT_EDIT,
+          {
+            productId: id,
+            productName: updatedProduct.name || oldProduct?.name,
+            changes: Object.keys(updatedProduct).filter(k => 
+              oldProduct && updatedProduct[k] !== oldProduct[k]
+            )
+          },
+          userId,
+          userName
+        )
 
         // Sync to Supabase
         if (isSupabaseConfigured()) {
@@ -180,7 +212,21 @@ export const useProductStore = create(
         }
       },
       
-      deleteProduct: async (id) => {
+      deleteProduct: async (id, userId = null, userName = null) => {
+        const product = get().products.find(p => p.id === id)
+        
+        // Audit log for product delete
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.PRODUCT_DELETE,
+          {
+            productId: id,
+            productCode: product?.code,
+            productName: product?.name
+          },
+          userId,
+          userName
+        )
+
         // Delete locally first
         set((state) => ({
           products: state.products.filter((p) => p.id !== id)
@@ -278,6 +324,28 @@ export const useProductStore = create(
           products: state.products.map((p) => p.id === id ? { ...p, stock: newStock } : p),
           stockHistory: [historyEntry, ...state.stockHistory].slice(0, 1000) // Keep last 1000 entries
         }))
+
+        // Audit log for stock changes
+        const auditAction = reason === 'purchase' ? AUDIT_ACTIONS.STOCK_PURCHASE 
+          : reason === 'adjustment' ? AUDIT_ACTIONS.STOCK_ADJUST 
+          : reason === 'opname' ? AUDIT_ACTIONS.STOCK_OPNAME
+          : AUDIT_ACTIONS.STOCK_ADJUST
+
+        useAuditStore.getState().addLog(
+          auditAction,
+          {
+            productId: id,
+            productName: product.name,
+            productSku: product.sku || product.code,
+            oldStock,
+            newStock,
+            change,
+            reason,
+            note
+          },
+          userId,
+          null
+        )
 
         // Sync to Supabase
         if (isSupabaseConfigured()) {

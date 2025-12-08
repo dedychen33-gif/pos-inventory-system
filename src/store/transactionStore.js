@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { useAuditStore, AUDIT_ACTIONS } from './auditStore'
 
 export const useTransactionStore = create(
   persist(
@@ -67,6 +68,21 @@ export const useTransactionStore = create(
           transactions: [newTransaction, ...state.transactions]
         }))
 
+        // Audit log for new transaction
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.TRANSACTION_CREATE,
+          {
+            transactionId: newTransaction.id,
+            transactionCode,
+            total: transaction.total,
+            itemCount: transaction.items?.length || 0,
+            paymentMethod: transaction.paymentMethod,
+            source: newTransaction.source
+          },
+          transaction.cashierId || null,
+          transaction.cashierName || null
+        )
+
         if (isSupabaseConfigured()) {
           await supabase.from('transactions').insert({
             id: newTransaction.id,
@@ -88,13 +104,44 @@ export const useTransactionStore = create(
         return newTransaction
       },
       
-      voidTransaction: async (id, reason) => {
+      voidTransaction: async (id, reason, restoreStockFn = null, userId = null, userName = null) => {
+        const transaction = get().transactions.find(t => t.id === id)
         const voidDate = new Date().toISOString()
+        
+        // Mark transaction as void
         set((state) => ({
           transactions: state.transactions.map((t) =>
             t.id === id ? { ...t, status: 'void', voidReason: reason, voidDate } : t
           )
         }))
+
+        // Audit log for void transaction
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.TRANSACTION_VOID,
+          {
+            transactionId: id,
+            transactionCode: transaction?.transactionCode,
+            originalTotal: transaction?.total,
+            reason,
+            itemsRestored: transaction?.items?.length || 0
+          },
+          userId,
+          userName
+        )
+
+        // Restore stock if function provided and transaction has items
+        if (restoreStockFn && transaction && transaction.items) {
+          for (const item of transaction.items) {
+            await restoreStockFn(
+              item.id, 
+              item.quantity, 
+              'add', 
+              'return', 
+              `Void transaksi: ${id} - ${reason}`,
+              userId
+            )
+          }
+        }
 
         if (isSupabaseConfigured()) {
           await supabase.from('transactions').update({
@@ -103,6 +150,8 @@ export const useTransactionStore = create(
             void_date: voidDate
           }).eq('id', id)
         }
+        
+        return { success: true, transaction }
       },
       
       getTransactionsByDate: (startDate, endDate) => {

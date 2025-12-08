@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Download, Printer, Calendar, Search, Eye, X as XIcon, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, BarChart3, PieChart } from 'lucide-react'
+import { Download, Printer, Calendar, Search, Eye, X as XIcon, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, BarChart3, PieChart, Ban } from 'lucide-react'
 import { useTransactionStore } from '../store/transactionStore'
 import { useProductStore } from '../store/productStore'
 import { useMarketplaceStore } from '../store/marketplaceStore'
+import { useAuthStore } from '../store/authStore'
 
 export default function Reports() {
   const [reportType, setReportType] = useState('transactions')
@@ -10,9 +11,10 @@ export default function Reports() {
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
   
-  const { transactions, getTodaySales } = useTransactionStore()
-  const { products, stockHistory } = useProductStore()
+  const { transactions, getTodaySales, voidTransaction } = useTransactionStore()
+  const { products, stockHistory, updateStock } = useProductStore()
   const { stores } = useMarketplaceStore()
+  const { user } = useAuthStore()
 
   const reportTypes = [
     { id: 'transactions', label: 'Transaksi Kasir' },
@@ -149,7 +151,7 @@ export default function Reports() {
       </div>
 
       {/* Report Content */}
-      {reportType === 'transactions' && <TransactionsReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
+      {reportType === 'transactions' && <TransactionsReport transactions={transactions} voidTransaction={voidTransaction} updateStock={updateStock} user={user} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'sales' && <SalesReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'stock' && <StockReport products={products} stockHistory={stockHistory} />}
       {reportType === 'products' && <ProductsReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
@@ -159,10 +161,32 @@ export default function Reports() {
   )
 }
 
-function TransactionsReport({ transactions, dateRange, customStartDate, customEndDate }) {
+function TransactionsReport({ transactions, voidTransaction, updateStock, user, dateRange, customStartDate, customEndDate }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
+  const [voidReason, setVoidReason] = useState('')
+  const [showVoidModal, setShowVoidModal] = useState(false)
+  const [transactionToVoid, setTransactionToVoid] = useState(null)
+
+  const handleVoidClick = (transaction) => {
+    setTransactionToVoid(transaction)
+    setVoidReason('')
+    setShowVoidModal(true)
+  }
+
+  const handleConfirmVoid = async () => {
+    if (!voidReason.trim()) {
+      alert('Masukkan alasan void transaksi')
+      return
+    }
+    
+    await voidTransaction(transactionToVoid.id, voidReason, updateStock, user?.id, user?.name)
+    setShowVoidModal(false)
+    setTransactionToVoid(null)
+    setVoidReason('')
+    alert('Transaksi berhasil di-void dan stok telah dikembalikan')
+  }
 
   const filteredTransactions = transactions.filter((t) => {
     const matchSearch = t.id.toLowerCase().includes(searchTerm.toLowerCase())
@@ -291,10 +315,20 @@ function TransactionsReport({ transactions, dateRange, customStartDate, customEn
                       <button
                         onClick={() => handleViewDetail(transaction)}
                         className="text-primary hover:text-blue-700"
+                        title="Lihat Detail"
                       >
                         <Eye size={18} />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-700">
+                      {transaction.status === 'completed' && (
+                        <button 
+                          onClick={() => handleVoidClick(transaction)}
+                          className="text-red-500 hover:text-red-700"
+                          title="Void Transaksi"
+                        >
+                          <Ban size={18} />
+                        </button>
+                      )}
+                      <button className="text-gray-600 hover:text-gray-700" title="Print">
                         <Printer size={18} />
                       </button>
                     </td>
@@ -306,6 +340,46 @@ function TransactionsReport({ transactions, dateRange, customStartDate, customEn
         </div>
       </div>
 
+      {/* Void Modal */}
+      {showVoidModal && transactionToVoid && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4 text-red-600">Void Transaksi</h3>
+            <p className="text-gray-600 mb-4">
+              Void transaksi <strong>{transactionToVoid.id}</strong> senilai <strong>Rp {transactionToVoid.total.toLocaleString('id-ID')}</strong>?
+            </p>
+            <p className="text-sm text-yellow-600 bg-yellow-50 p-3 rounded mb-4">
+              ⚠️ Stok produk akan dikembalikan otomatis
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Alasan Void *</label>
+              <textarea
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="Masukkan alasan void..."
+                className="input w-full"
+                rows={3}
+                required
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowVoidModal(false)}
+                className="btn btn-secondary flex-1"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleConfirmVoid}
+                className="btn btn-danger flex-1"
+              >
+                Konfirmasi Void
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       {showDetailModal && selectedTransaction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -313,7 +387,7 @@ function TransactionsReport({ transactions, dateRange, customStartDate, customEn
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-xl font-bold">Detail Transaksi</h3>
               <button
-                onClick={() => setShowDetailModal(false)}
+                onClick={() => setShowDetailModal(false)}}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <XIcon size={24} />

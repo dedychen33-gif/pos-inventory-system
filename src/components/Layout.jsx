@@ -19,9 +19,12 @@ import {
   Store,
   Cloud,
   CloudOff,
-  RefreshCw
+  RefreshCw,
+  Bell,
+  AlertTriangle
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import { useProductStore } from '../store/productStore'
 import { isAndroid } from '../utils/platform'
 import { isSupabaseConfigured } from '../lib/supabase'
 
@@ -66,8 +69,15 @@ const bottomNavItems = allBottomNavItems.filter(item => {
 export default function Layout({ children }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState({ isOnline: false, isSyncing: false })
+  const [showNotifications, setShowNotifications] = useState(false)
   const location = useLocation()
   const { user, logout } = useAuthStore()
+  const { products } = useProductStore()
+
+  // Calculate low stock alerts
+  const lowStockProducts = products.filter(p => p.stock <= (p.minStock || 5) && p.stock > 0)
+  const outOfStockProducts = products.filter(p => p.stock === 0)
+  const totalAlerts = lowStockProducts.length + outOfStockProducts.length
 
   // Auto-show sidebar when mouse is at left edge of screen
   useEffect(() => {
@@ -125,8 +135,94 @@ export default function Layout({ children }) {
         <h1 className="text-lg font-semibold">
           {menuItems.find(item => item.path === location.pathname)?.label || 'POS System'}
         </h1>
-        {/* Cloud sync indicator */}
-        <div 
+        <div className="flex items-center gap-2">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-2 rounded-full hover:bg-gray-700 active:bg-gray-600 relative"
+            >
+              <Bell size={20} />
+              {totalAlerts > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {totalAlerts > 9 ? '9+' : totalAlerts}
+                </span>
+              )}
+            </button>
+            
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowNotifications(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b bg-gray-50">
+                    <h3 className="font-semibold text-gray-900">Notifikasi</h3>
+                  </div>
+                  {totalAlerts === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      Tidak ada notifikasi
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {outOfStockProducts.length > 0 && (
+                        <div className="p-3 bg-red-50">
+                          <div className="flex items-center gap-2 text-red-700 font-medium mb-2">
+                            <AlertTriangle size={16} />
+                            <span>Stok Habis ({outOfStockProducts.length})</span>
+                          </div>
+                          <div className="space-y-1">
+                            {outOfStockProducts.slice(0, 5).map(p => (
+                              <div key={p.id} className="text-sm text-red-600">
+                                • {p.name}
+                              </div>
+                            ))}
+                            {outOfStockProducts.length > 5 && (
+                              <div className="text-xs text-red-500">
+                                ...dan {outOfStockProducts.length - 5} produk lainnya
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {lowStockProducts.length > 0 && (
+                        <div className="p-3 bg-yellow-50">
+                          <div className="flex items-center gap-2 text-yellow-700 font-medium mb-2">
+                            <AlertTriangle size={16} />
+                            <span>Stok Menipis ({lowStockProducts.length})</span>
+                          </div>
+                          <div className="space-y-1">
+                            {lowStockProducts.slice(0, 5).map(p => (
+                              <div key={p.id} className="text-sm text-yellow-600">
+                                • {p.name} (sisa: {p.stock})
+                              </div>
+                            ))}
+                            {lowStockProducts.length > 5 && (
+                              <div className="text-xs text-yellow-500">
+                                ...dan {lowStockProducts.length - 5} produk lainnya
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <Link 
+                        to="/stock" 
+                        onClick={() => setShowNotifications(false)}
+                        className="block p-3 text-center text-primary hover:bg-gray-50 text-sm font-medium"
+                      >
+                        Lihat Semua Stok →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* Cloud sync indicator */}
+          <div 
           className="flex items-center gap-1" 
           title={
             syncStatus.isSyncing 

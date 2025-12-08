@@ -2,13 +2,15 @@ import { useState, useRef, useEffect } from 'react'
 import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText } from 'lucide-react'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useProductStore } from '../store/productStore'
+import { useAuthStore } from '../store/authStore'
 
 export default function Purchases() {
   const [showModal, setShowModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
   const { purchases, suppliers, addPurchase, updatePurchase, deletePurchase, addSupplier } = usePurchaseStore()
-  const { products, updateProduct } = useProductStore()
+  const { products, updateStock } = useProductStore()
+  const { user } = useAuthStore()
 
   const handleAddPurchase = () => {
     setEditingPurchase(null)
@@ -31,11 +33,18 @@ export default function Purchases() {
       updatePurchase(editingPurchase.id, purchaseData)
     } else {
       addPurchase(purchaseData)
-      // Update stock produk
+      // Update stock produk dengan history tracking
       purchaseData.items.forEach(item => {
         const product = products.find(p => p.id === item.productId)
         if (product) {
-          updateProduct(item.productId, { stock: product.stock + item.qty })
+          updateStock(
+            item.productId, 
+            item.qty, 
+            'add', 
+            'purchase', 
+            `PO: ${purchaseData.poNumber || 'Manual'}`, 
+            user?.id
+          )
         }
       })
     }

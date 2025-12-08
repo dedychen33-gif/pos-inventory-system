@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import CryptoJS from 'crypto-js'
+import { useAuditStore, AUDIT_ACTIONS } from './auditStore'
 
 // Hash password function
 const hashPassword = (password) => {
@@ -110,8 +111,25 @@ export const useAuthStore = create(
         if (foundUser) {
           const { password: _, ...userWithoutPassword } = foundUser
           set({ user: userWithoutPassword, isAuthenticated: true })
+          
+          // Log successful login
+          useAuditStore.getState().addLog(
+            AUDIT_ACTIONS.LOGIN,
+            { username: foundUser.username, role: foundUser.role },
+            foundUser.id,
+            foundUser.name
+          )
+          
           return { success: true }
         }
+        
+        // Log failed login attempt
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.LOGIN_FAILED,
+          { username, reason: 'Invalid credentials' },
+          null,
+          null
+        )
         
         // Check if user exists but inactive
         const inactiveUser = users.find(u => u.username === username && verifyPassword(password, u.password))
@@ -123,6 +141,15 @@ export const useAuthStore = create(
       },
       
       logout: () => {
+        const currentUser = get().user
+        if (currentUser) {
+          useAuditStore.getState().addLog(
+            AUDIT_ACTIONS.LOGOUT,
+            { username: currentUser.username },
+            currentUser.id,
+            currentUser.name
+          )
+        }
         set({ user: null, isAuthenticated: false })
       },
 
