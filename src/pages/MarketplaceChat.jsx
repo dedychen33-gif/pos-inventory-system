@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Search, Send, RefreshCw, MessageCircle, Store,
   Image, Paperclip, Smile, Check, CheckCheck, Clock, Filter,
-  User, Phone, ShoppingBag, ChevronDown, MoreVertical, Star
+  User, Phone, ShoppingBag, ChevronDown, MoreVertical, Star,
+  Wifi, WifiOff, AlertCircle
 } from 'lucide-react';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
+import { chatService } from '../services/chatApi';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -209,13 +211,52 @@ export default function MarketplaceChat() {
 
   // Load messages when selecting conversation
   useEffect(() => {
-    if (selectedConversation && !messages[selectedConversation.id]) {
-      const demoMsgs = generateDemoMessages(selectedConversation.id);
-      setMessages(selectedConversation.id, demoMsgs);
-    }
-    if (selectedConversation) {
+    const loadMessages = async () => {
+      if (!selectedConversation) return;
+      
+      // If messages already loaded, just mark as read
+      if (messages[selectedConversation.id]?.length > 0) {
+        markAsRead(selectedConversation.id);
+        return;
+      }
+      
+      // Try to load from API
+      const store = stores.find(s => s.id === selectedConversation.storeId);
+      if (store?.credentials?.accessToken) {
+        try {
+          const apiMessages = await chatService.getMessages(store, selectedConversation.id);
+          
+          // Transform messages
+          const transformedMsgs = apiMessages.map(msg => ({
+            id: msg.message_id || msg.id || `msg-${Date.now()}-${Math.random()}`,
+            conversationId: selectedConversation.id,
+            content: msg.content?.text || msg.txt_content || msg.message || msg.content || '',
+            sender: msg.message_sender === 'seller' || msg.direction === 'out' ? 'seller' : 'buyer',
+            timestamp: new Date((msg.create_timestamp || msg.create_time || Date.now()) * 1000).toISOString(),
+            status: msg.is_read ? 'read' : 'sent',
+            type: msg.message_type || 'text'
+          }));
+          
+          setMessages(selectedConversation.id, transformedMsgs);
+          
+          // Mark as read on API
+          await chatService.markAsRead(store, selectedConversation.id);
+        } catch (error) {
+          console.error('Failed to load messages:', error);
+          // Fallback to demo messages
+          const demoMsgs = generateDemoMessages(selectedConversation.id);
+          setMessages(selectedConversation.id, demoMsgs);
+        }
+      } else {
+        // Demo mode
+        const demoMsgs = generateDemoMessages(selectedConversation.id);
+        setMessages(selectedConversation.id, demoMsgs);
+      }
+      
       markAsRead(selectedConversation.id);
-    }
+    };
+    
+    loadMessages();
   }, [selectedConversation]);
 
   // Auto scroll to bottom
@@ -240,44 +281,129 @@ export default function MarketplaceChat() {
   // Stats
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
   const activeStores = [...new Set(conversations.map(c => c.storeId))].length;
+  
+  // Check if any store has API configured
+  const hasApiStores = stores.some(s => 
+    s.isActive && 
+    s.credentials?.accessToken && 
+    ['shopee', 'lazada', 'tokopedia'].includes(s.platform)
+  );
 
-  // Send message
-  const handleSendMessage = () => {
+  // Send message (real API or demo)
+  const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation) return;
     
+    const content = messageInput.trim();
+    setMessageInput('');
+    
+    // Add optimistic message
     const newMessage = {
       id: `msg-${Date.now()}`,
       conversationId: selectedConversation.id,
-      content: messageInput.trim(),
+      content,
       sender: 'seller',
       timestamp: new Date().toISOString(),
-      status: 'sent',
+      status: 'sending',
       type: 'text'
     };
     
     addMessage(selectedConversation.id, newMessage);
-    setMessageInput('');
     inputRef.current?.focus();
     
-    // Simulate status update
-    setTimeout(() => {
-      // Update to 'delivered' then 'read'
-    }, 1000);
+    // Try to send via API if store has credentials
+    const store = stores.find(s => s.id === selectedConversation.storeId);
+    if (store?.credentials?.accessToken) {
+      try {
+        await chatService.sendMessage(store, selectedConversation.id, content);
+        // Update message status to sent
+        const msgs = messages[selectedConversation.id] || [];
+        const updatedMsgs = msgs.map(m => 
+          m.id === newMessage.id ? { ...m, status: 'sent' } : m
+        );
+        setMessages(selectedConversation.id, updatedMsgs);
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        // Update message status to failed
+        const msgs = messages[selectedConversation.id] || [];
+        const updatedMsgs = msgs.map(m => 
+          m.id === newMessage.id ? { ...m, status: 'failed' } : m
+        );
+        setMessages(selectedConversation.id, updatedMsgs);
+      }
+    } else {
+      // Demo mode - simulate sent
+      setTimeout(() => {
+        const msgs = messages[selectedConversation.id] || [];
+        const updatedMsgs = msgs.map(m => 
+          m.id === newMessage.id ? { ...m, status: 'sent' } : m
+        );
+        setMessages(selectedConversation.id, updatedMsgs);
+      }, 500);
+    }
   };
 
-  // Sync chats
+  // Sync chats from API
   const handleSync = async () => {
     setIsSyncing(true);
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      // In real implementation, fetch from marketplace APIs
-      alert('Sinkronisasi chat berhasil!');
+      // Get stores with API access
+      const apiStores = stores.filter(s => 
+        s.isActive && 
+        s.credentials?.accessToken && 
+        ['shopee', 'lazada', 'tokopedia'].includes(s.platform)
+      );
+      
+      if (apiStores.length > 0) {
+        // Fetch real conversations from API
+        const allConversations = await chatService.getAllConversations(apiStores);
+        
+        // Transform and add to store
+        allConversations.forEach(conv => {
+          const transformed = {
+            id: conv.conversation_id || conv.session_id || conv.msg_id || `conv-${Date.now()}`,
+            platform: conv.platform,
+            storeId: conv.storeId,
+            storeName: conv.storeName,
+            customerId: conv.to_id || conv.buyer_id || conv.user_id,
+            customerName: conv.to_name || conv.buyer_name || conv.user_name || 'Pelanggan',
+            customerAvatar: conv.to_avatar || conv.buyer_avatar,
+            lastMessage: conv.last_message_content || conv.latest_message || conv.content || '',
+            lastMessageTime: new Date((conv.last_message_timestamp || conv.latest_message_time || Date.now()) * 1000).toISOString(),
+            unread: conv.unread_count || conv.unread || 0,
+            isOnline: conv.is_online || false,
+            orderId: conv.order_id || conv.order_sn || null
+          };
+          addConversation(transformed);
+        });
+        
+        alert(`Berhasil sync ${allConversations.length} percakapan dari ${apiStores.length} toko`);
+      } else {
+        // Demo mode - generate demo data
+        if (conversations.length === 0) {
+          const demoConvs = generateDemoConversations(stores);
+          demoConvs.forEach(conv => addConversation(conv));
+        }
+        alert('Mode Demo: Tidak ada toko dengan API terkoneksi. Menampilkan data demo.');
+      }
     } catch (error) {
+      console.error('Sync error:', error);
       alert('Gagal sinkronisasi: ' + error.message);
     } finally {
       setIsSyncing(false);
     }
   };
+
+  // Auto-refresh every 30 seconds if API is connected
+  useEffect(() => {
+    if (!hasApiStores) return;
+    
+    const interval = setInterval(() => {
+      handleSync();
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(interval);
+  }, [hasApiStores, stores]);
 
   // Format time
   const formatTime = (timestamp) => {
@@ -307,12 +433,31 @@ export default function MarketplaceChat() {
           </button>
           <div>
             <h1 className="text-xl font-bold text-gray-900">Chat Marketplace</h1>
-            <p className="text-sm text-gray-500">
-              {totalUnread > 0 ? `${totalUnread} pesan belum dibaca` : 'Semua pesan sudah dibaca'}
-            </p>
+            <div className="flex items-center gap-2 text-sm">
+              {hasApiStores ? (
+                <span className="flex items-center gap-1 text-green-600">
+                  <Wifi size={14} />
+                  Live - Auto refresh 30s
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-yellow-600">
+                  <WifiOff size={14} />
+                  Demo Mode
+                </span>
+              )}
+              {totalUnread > 0 && (
+                <span className="text-gray-500">• {totalUnread} belum dibaca</span>
+              )}
+            </div>
           </div>
         </div>
-        <button
+        <div className="flex items-center gap-2">
+          {!hasApiStores && (
+            <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+              Hubungkan toko untuk chat real
+            </span>
+          )}
+          <button
           onClick={handleSync}
           disabled={isSyncing}
           className="btn btn-primary flex items-center gap-2"
