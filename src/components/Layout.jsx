@@ -21,12 +21,14 @@ import {
   CloudOff,
   RefreshCw,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircle
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useProductStore } from '../store/productStore'
 import { isAndroid } from '../utils/platform'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { initNotificationSettings } from '../services/chatNotification'
 
 // Filter menu items based on platform
 const allMenuItems = [
@@ -70,6 +72,7 @@ export default function Layout({ children }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState({ isOnline: false, isSyncing: false })
   const [showNotifications, setShowNotifications] = useState(false)
+  const [chatUnread, setChatUnread] = useState(0)
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const { products } = useProductStore()
@@ -78,6 +81,32 @@ export default function Layout({ children }) {
   const lowStockProducts = products.filter(p => p.stock <= (p.minStock || 5) && p.stock > 0)
   const outOfStockProducts = products.filter(p => p.stock === 0)
   const totalAlerts = lowStockProducts.length + outOfStockProducts.length
+
+  // Initialize chat notification settings
+  useEffect(() => {
+    initNotificationSettings()
+  }, [])
+
+  // Get chat unread count from localStorage
+  useEffect(() => {
+    const checkChatUnread = () => {
+      try {
+        const chatStore = localStorage.getItem('marketplace-chat-store')
+        if (chatStore) {
+          const parsed = JSON.parse(chatStore)
+          const convs = parsed.state?.conversations || []
+          const total = convs.reduce((sum, c) => sum + (c.unread || 0), 0)
+          setChatUnread(total)
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    
+    checkChatUnread()
+    const interval = setInterval(checkChatUnread, 5000) // Check every 5 seconds
+    return () => clearInterval(interval)
+  }, [])
 
   // Auto-show sidebar when mouse is at left edge of screen
   useEffect(() => {
@@ -136,6 +165,20 @@ export default function Layout({ children }) {
           {menuItems.find(item => item.path === location.pathname)?.label || 'POS System'}
         </h1>
         <div className="flex items-center gap-2">
+          {/* Chat Badge */}
+          {chatUnread > 0 && (
+            <Link
+              to="/marketplace/chat"
+              className="p-2 rounded-full hover:bg-gray-700 active:bg-gray-600 relative"
+              title={`${chatUnread} chat belum dibaca`}
+            >
+              <MessageCircle size={20} />
+              <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                {chatUnread > 9 ? '9+' : chatUnread}
+              </span>
+            </Link>
+          )}
+          
           {/* Notification Bell */}
           <div className="relative">
             <button

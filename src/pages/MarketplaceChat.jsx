@@ -4,10 +4,18 @@ import {
   ChevronLeft, Search, Send, RefreshCw, MessageCircle, Store,
   Image, Paperclip, Smile, Check, CheckCheck, Clock, Filter,
   User, Phone, ShoppingBag, ChevronDown, MoreVertical, Star,
-  Wifi, WifiOff, AlertCircle
+  Wifi, WifiOff, AlertCircle, Volume2, VolumeX
 } from 'lucide-react';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { chatService } from '../services/chatApi';
+import { 
+  checkNewMessages, 
+  playNotificationSound, 
+  initNotificationSettings,
+  requestNotificationPermission,
+  notifyNewChat
+} from '../services/chatNotification';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -181,6 +189,7 @@ const PlatformLogo = ({ platform, size = 24 }) => {
 export default function MarketplaceChat() {
   const navigate = useNavigate();
   const { stores } = useMarketplaceStore();
+  const { chatNotification } = useSettingsStore();
   const { 
     conversations, 
     messages, 
@@ -197,9 +206,34 @@ export default function MarketplaceChat() {
   const [messageInput, setMessageInput] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [showStoreFilter, setShowStoreFilter] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(chatNotification?.soundEnabled ?? true);
+  const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Initialize notification settings and request permission
+  useEffect(() => {
+    initNotificationSettings();
+    requestNotificationPermission();
+  }, []);
+
+  // Check for new messages and play sound
+  useEffect(() => {
+    const totalUnreadNow = conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
+    
+    if (soundEnabled && totalUnreadNow > previousUnreadCount && previousUnreadCount > 0) {
+      // New message arrived - play sound and show notification
+      const newConv = conversations.find(c => c.unread > 0);
+      if (newConv) {
+        notifyNewChat(newConv.storeName, newConv.customerName, newConv.lastMessage);
+      } else {
+        playNotificationSound();
+      }
+    }
+    
+    setPreviousUnreadCount(totalUnreadNow);
+  }, [conversations, soundEnabled]);
 
   // Initialize demo data
   useEffect(() => {
@@ -452,6 +486,19 @@ export default function MarketplaceChat() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Sound Toggle */}
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`p-2 rounded-lg transition-colors ${
+              soundEnabled 
+                ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            }`}
+            title={soundEnabled ? 'Notifikasi Suara: Aktif' : 'Notifikasi Suara: Mati'}
+          >
+            {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          </button>
+          
           {!hasApiStores && (
             <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
               Hubungkan toko untuk chat real
