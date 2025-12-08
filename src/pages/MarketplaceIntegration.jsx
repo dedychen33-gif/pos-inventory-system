@@ -7,6 +7,15 @@ import {
   Download, Upload, ArrowRight, CheckCircle, XCircle, Info, Play, Zap
 } from 'lucide-react';
 import { useMarketplaceStore, PLATFORM_INFO, MARKETPLACE_PLATFORMS } from '../store/marketplaceStore';
+
+// Component to render marketplace logo
+const MarketplaceLogo = ({ platform, size = 24 }) => {
+  const platformInfo = PLATFORM_INFO[platform] || PLATFORM_INFO.manual;
+  if (platformInfo.logo) {
+    return <span dangerouslySetInnerHTML={{ __html: platformInfo.logo(size) }} />;
+  }
+  return <span className="text-xl">{platformInfo.icon || '📦'}</span>;
+};
 import { useAuthStore } from '../store/authStore';
 import { useProductStore } from '../store/productStore';
 import { marketplaceService } from '../services/marketplaceApi';
@@ -388,7 +397,7 @@ export default function MarketplaceIntegration() {
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${platformInfo.bgLight} ${platformInfo.textColor}`}>
-                            <span>{platformInfo.icon}</span>
+                            <MarketplaceLogo platform={store.platform} size={20} />
                             {platformInfo.name}
                           </span>
                         </div>
@@ -1204,8 +1213,8 @@ function EditStoreModal({ store, onClose, onSuccess }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b flex items-center justify-between sticky top-0 bg-white">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${platformInfo.bgLight} rounded-lg flex items-center justify-center text-xl`}>
-              {platformInfo.icon}
+            <div className={`w-10 h-10 ${platformInfo.bgLight} rounded-lg flex items-center justify-center overflow-hidden`}>
+              <MarketplaceLogo platform={store.platform} size={32} />
             </div>
             <div>
               <h2 className="text-xl font-bold">Edit Toko</h2>
@@ -1593,8 +1602,8 @@ function SetupGuideModal({ platform, onClose }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b flex items-center justify-between sticky top-0 bg-white">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${platformInfo.bgLight} rounded-lg flex items-center justify-center text-xl`}>
-              {platformInfo.icon}
+            <div className={`w-10 h-10 ${platformInfo.bgLight} rounded-lg flex items-center justify-center overflow-hidden`}>
+              <MarketplaceLogo platform={platform} size={32} />
             </div>
             <div>
               <h2 className="text-xl font-bold">{guide.title}</h2>

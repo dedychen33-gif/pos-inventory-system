@@ -21,6 +21,15 @@ import { useSettingsStore } from '../store/settingsStore'
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore'
 import { Link } from 'react-router-dom'
 
+// Component to render marketplace logo
+const MarketplaceLogo = ({ platform, size = 24 }) => {
+  const platformInfo = PLATFORM_INFO[platform] || PLATFORM_INFO.manual
+  if (platformInfo.logo) {
+    return <span dangerouslySetInnerHTML={{ __html: platformInfo.logo(size) }} />
+  }
+  return <span className="text-xl">{platformInfo.icon || '📦'}</span>
+}
+
 export default function Dashboard() {
   const { products, getLowStockProducts } = useProductStore()
   const { transactions, getTodaySales, getTodayTransactions } = useTransactionStore()
@@ -227,7 +236,7 @@ export default function Dashboard() {
                   className={`${platformInfo.bgLight} ${platformInfo.borderColor} border rounded-lg p-4`}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">{platformInfo.icon}</span>
+                    <MarketplaceLogo platform={store.platform} size={28} />
                     <span className={`text-sm font-medium ${platformInfo.textColor}`}>
                       {platformInfo.name}
                     </span>
