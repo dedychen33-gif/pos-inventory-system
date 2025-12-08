@@ -4,7 +4,8 @@ import {
   Store, Plus, Settings, Trash2, RefreshCw, Link2, Link2Off, Search,
   ExternalLink, Edit2, MoreHorizontal, Check, X, AlertCircle, Eye,
   Package, ShoppingCart, Clock, Filter, ChevronDown, Loader2, Wifi, WifiOff,
-  Download, Upload, ArrowRight, CheckCircle, XCircle, Info, Play, Zap
+  Download, Upload, ArrowRight, CheckCircle, XCircle, Info, Play, Zap,
+  MessageCircle
 } from 'lucide-react';
 import { useMarketplaceStore, PLATFORM_INFO, MARKETPLACE_PLATFORMS } from '../store/marketplaceStore';
 
@@ -271,6 +272,13 @@ export default function MarketplaceIntegration() {
           >
             <ShoppingCart size={18} />
             Lihat Pesanan
+          </button>
+          <button
+            onClick={() => navigate('/marketplace/chat')}
+            className="btn btn-outline inline-flex items-center gap-2"
+          >
+            <MessageCircle size={18} />
+            Chat
           </button>
           <button
             onClick={handleSyncAll}
