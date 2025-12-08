@@ -59,7 +59,8 @@ export const useTransactionStore = create(
           id: crypto.randomUUID ? crypto.randomUUID() : transactionCode,
           transactionCode,
           date: new Date().toISOString(),
-          status: 'completed'
+          status: 'completed',
+          source: transaction.source || 'pos' // 'pos', 'shopee', 'lazada', 'tokopedia', 'tiktok'
         }
         
         set((state) => ({
@@ -154,6 +155,7 @@ function transformTransaction(row) {
     voidReason: row.void_reason,
     voidDate: row.void_date,
     cashierName: row.cashier_name,
+    source: row.source || 'pos',
     date: row.created_at
   }
 }
