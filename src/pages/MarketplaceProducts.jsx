@@ -137,16 +137,19 @@ export default function MarketplaceProducts() {
               
               // Process variants/models if available
               const variants = item.models?.map(model => {
-                // Debug: log model structure to find price field
+                // Debug: log full model structure to find price field
                 if (model.price_info) {
-                  console.log('Model price_info:', model.model_name, model.price_info);
+                  console.log('Model price_info detail:', model.model_name, JSON.stringify(model.price_info));
                 }
+                
+                // price_info is an array in Shopee API, get first element
+                const priceInfo = Array.isArray(model.price_info) ? model.price_info[0] : model.price_info;
                 
                 // Try multiple price field locations from Shopee API
                 const variantPrice = 
                   model.current_price || 
-                  model.price_info?.current_price ||
-                  model.price_info?.original_price ||
+                  priceInfo?.current_price ||
+                  priceInfo?.original_price ||
                   model.original_price ||
                   model.price ||
                   0;
