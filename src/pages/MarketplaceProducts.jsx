@@ -153,6 +153,11 @@ export default function MarketplaceProducts() {
               updatedAt: new Date().toISOString()
             }));
 
+            console.log(`Processing ${productsToAdd.length} products from ${store.shopName}...`);
+            
+            // Track skipped products for debugging
+            const skippedProducts = [];
+
             // Add or update each product - use getState() to get fresh products list
             for (const product of productsToAdd) {
               // Get current products from store (fresh state)
@@ -163,6 +168,16 @@ export default function MarketplaceProducts() {
               );
               
               if (existingProduct) {
+                // Log why this product was skipped/updated
+                skippedProducts.push({
+                  name: product.name,
+                  shopeeItemId: product.shopeeItemId,
+                  sku: product.sku,
+                  reason: 'duplicate',
+                  matchedBy: existingProduct.shopeeItemId === product.shopeeItemId ? 'shopeeItemId' : 'sku',
+                  existingId: existingProduct.id
+                });
+                
                 // Update existing product with new data from marketplace
                 updateProduct(existingProduct.id, {
                   name: product.name,
@@ -177,6 +192,13 @@ export default function MarketplaceProducts() {
                 totalSynced++;
               }
             }
+
+            // Log skipped products for debugging
+            if (skippedProducts.length > 0) {
+              console.warn(`Skipped/Updated ${skippedProducts.length} products (duplicates):`, skippedProducts);
+            }
+            
+            console.log(`Sync summary for ${store.shopName}: ${totalSynced} added, ${totalUpdated} updated, ${skippedProducts.length} were duplicates`);
 
             // Update store last sync time and product count
             updateStore(store.id, { 
