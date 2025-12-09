@@ -232,12 +232,15 @@ export default function MarketplaceOrders() {
           console.log(`Syncing returns from ${store.shopName}...`);
           const returnsResult = await shopeeApi.syncReturns(store);
           
-          console.log('Shopee syncReturns result:', returnsResult);
+          console.log('Shopee syncReturns full result:', JSON.stringify(returnsResult, null, 2));
+          console.log('Returns data length:', returnsResult?.data?.length);
           
           if (returnsResult.success && returnsResult.data && returnsResult.data.length > 0) {
+            console.log('Processing', returnsResult.data.length, 'returns...');
             let totalReturns = 0;
             
             for (const ret of returnsResult.data) {
+              console.log('Processing return:', ret.return_sn, ret.status);
               const currentTransactions = useTransactionStore.getState().transactions;
               const existingReturn = currentTransactions.find(t => 
                 t.returnSn === ret.return_sn ||

@@ -57,12 +57,10 @@ export default async function handler(req, res) {
     const apiPath = '/api/v2/returns/get_return_list';
     const sign = generateSignatureV2(partnerId, partnerKey, apiPath, timestamp, accessToken, shopId);
     
-    const pageSize = parseInt(req.query.page_size) || 100;
+    const pageSize = parseInt(req.query.page_size) || 40;
+    const pageNo = parseInt(req.query.page_no) || 1;
     
-    // Default: last 15 days (Shopee has limit on time range)
-    const now = Math.floor(Date.now() / 1000);
-    const fifteenDaysAgo = now - (15 * 24 * 60 * 60);
-    
+    // Build query params - Shopee Returns API v2
     const queryParams = new URLSearchParams({
       partner_id: partnerId,
       timestamp: timestamp.toString(),
@@ -70,7 +68,7 @@ export default async function handler(req, res) {
       shop_id: shopId,
       access_token: accessToken,
       page_size: pageSize.toString(),
-      page_no: '0'
+      page_no: pageNo.toString()
     });
 
     const options = {
