@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ChevronLeft, Search, Package, RefreshCw, Download, Check, Store,
+  ChevronLeft, ChevronDown, ChevronRight, Search, Package, RefreshCw, Download, Check, Store,
   Filter, Eye, Edit2, Trash2, CheckCircle, Clock, AlertCircle
 } from 'lucide-react';
 import { useProductStore } from '../store/productStore';
@@ -26,6 +26,7 @@ export default function MarketplaceProducts() {
   const [perPage, setPerPage] = useState(20);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState([]);
 
   const { products, importShopeeProducts, addProduct, updateProduct } = useProductStore();
   const { stores, updateStore } = useMarketplaceStore();
@@ -467,57 +468,67 @@ export default function MarketplaceProducts() {
                 </tr>
               ) : (
                 paginatedProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => handleSelectProduct(product.id)}
-                        className="rounded"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {product.image ? (
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <Package className="text-gray-400" size={20} />
+                  <React.Fragment key={product.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.id)}
+                          onChange={() => handleSelectProduct(product.id)}
+                          className="rounded"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {product.image ? (
+                            <img 
+                              src={product.image} 
+                              alt={product.name}
+                              className="w-12 h-12 object-cover rounded-lg"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Package className="text-gray-400" size={20} />
+                            </div>
+                          )}
+                          <div>
+                            <div 
+                              className={`font-medium text-gray-900 line-clamp-2 ${product.hasVariants ? 'cursor-pointer hover:text-primary flex items-center gap-1' : ''}`}
+                              onClick={() => {
+                                if (product.hasVariants) {
+                                  setExpandedProducts(prev => 
+                                    prev.includes(product.id) 
+                                      ? prev.filter(id => id !== product.id)
+                                      : [...prev, product.id]
+                                  );
+                                }
+                              }}
+                            >
+                              {product.hasVariants && (
+                                expandedProducts.includes(product.id) 
+                                  ? <ChevronDown size={16} className="text-primary flex-shrink-0" />
+                                  : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+                              )}
+                              {product.name}
+                              {product.hasVariants && (
+                                <span className="ml-1 text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">
+                                  {product.variants?.length} varian
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500">ID: {product.shopeeItemId || product.id}</p>
                           </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-gray-900 line-clamp-2">{product.name}</p>
-                          <p className="text-xs text-gray-500">ID: {product.shopeeItemId || product.id}</p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {product.hasVariants && product.variants?.length > 0 ? (
-                        <select 
-                          className="text-sm font-mono border rounded px-2 py-1 max-w-[150px]"
-                          defaultValue=""
-                        >
-                          <option value="">{product.variants.length} Varian</option>
-                          {product.variants.map((v, idx) => (
-                            <option key={idx} value={v.sku}>
-                              {v.name || v.sku || `Varian ${idx + 1}`} - Stok: {v.stock}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="text-sm font-mono">{product.sku || '-'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {getPlatformBadge(product)}
-                        <span className="text-sm text-gray-600">{product.shopName || product.shop_name || '-'}</span>
-                      </div>
-                    </td>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {getPlatformBadge(product)}
+                          <span className="text-sm text-gray-600">{product.shopName || product.shop_name || '-'}</span>
+                        </div>
+                      </td>
                     <td className="px-4 py-3 text-right">
                       <span className="font-medium">
                         Rp {(product.price || 0).toLocaleString('id-ID')}
@@ -541,7 +552,35 @@ export default function MarketplaceProducts() {
                         </span>
                       )}
                     </td>
-                  </tr>
+                    </tr>
+                    {/* Expanded variants rows */}
+                    {product.hasVariants && expandedProducts.includes(product.id) && product.variants?.map((variant, idx) => (
+                      <tr key={`${product.id}-var-${idx}`} className="bg-blue-50/50">
+                        <td className="px-4 py-2"></td>
+                        <td className="px-4 py-2 pl-16">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span className="text-sm text-gray-700">{variant.name || `Varian ${idx + 1}`}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="text-sm font-mono text-gray-600">{variant.sku || '-'}</span>
+                        </td>
+                        <td className="px-4 py-2"></td>
+                        <td className="px-4 py-2 text-right">
+                          <span className="text-sm font-medium text-gray-700">
+                            Rp {(variant.price || 0).toLocaleString('id-ID')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <span className={`text-sm font-medium ${variant.stock === 0 ? 'text-red-600' : variant.stock < 10 ? 'text-orange-600' : 'text-gray-700'}`}>
+                            {variant.stock || 0}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2"></td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))
               )}
             </tbody>
