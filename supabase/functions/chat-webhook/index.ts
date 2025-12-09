@@ -4,7 +4,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { hmac } from 'https://deno.land/x/hmac@v2.0.1/mod.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,9 +14,6 @@ const corsHeaders = {
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseKey)
-
-// Shopee credentials for verification
-const SHOPEE_PARTNER_KEY = Deno.env.get('SHOPEE_PARTNER_KEY') || ''
 
 serve(async (req) => {
   // Handle CORS
@@ -279,14 +275,4 @@ async function handleTiktokWebhook(body: any) {
     console.error('Error processing TikTok webhook:', error)
     return { success: false, error: error.message }
   }
-}
-
-// Verify Shopee webhook signature
-function verifyShopeeSignature(body: any, signature: string | null): boolean {
-  if (!signature || !SHOPEE_PARTNER_KEY) return true // Skip if not configured
-  
-  const bodyString = JSON.stringify(body)
-  const expectedSignature = hmac('sha256', SHOPEE_PARTNER_KEY, bodyString, 'utf8', 'hex')
-  
-  return signature === expectedSignature
 }
