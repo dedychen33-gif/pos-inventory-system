@@ -265,22 +265,22 @@ export default function MarketplaceOrders() {
       IN_CANCEL: 'bg-red-100 text-red-800',
     };
     const labels = {
-      // Local status
-      pending: 'Menunggu',
+      // Local status - matching Shopee Seller labels
+      pending: 'Belum Bayar',
       ready_to_ship: 'Perlu Dikirim',
       processing: 'Diproses',
-      shipped: 'Dikirim',
-      completed: 'Selesai',
+      shipped: 'Sudah Kirim',
+      completed: 'Pesanan Diterima',
       cancelled: 'Dibatalkan',
       void: 'Void',
-      // Shopee status (uppercase)
+      // Shopee status (uppercase) - matching Shopee Seller labels
       UNPAID: 'Belum Bayar',
       READY_TO_SHIP: 'Perlu Dikirim',
       PROCESSED: 'Diproses',
-      SHIPPED: 'Dikirim',
-      COMPLETED: 'Selesai',
+      SHIPPED: 'Sudah Kirim',
+      COMPLETED: 'Pesanan Diterima',
       CANCELLED: 'Dibatalkan',
-      IN_CANCEL: 'Dibatalkan',
+      IN_CANCEL: 'Dalam Pembatalan',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>
