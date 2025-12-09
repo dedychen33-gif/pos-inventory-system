@@ -128,30 +128,43 @@ export default function MarketplaceProducts() {
 
           if (result.success && result.data && result.data.length > 0) {
             // Transform products from API response
-            const productsToAdd = result.data.map(item => ({
-              id: Date.now() + Math.random(),
-              code: `MKT${item.item_id || item.id || Date.now()}`,
-              sku: item.item_sku || item.sku || '',
-              barcode: item.item_sku || '',
-              name: item.item_name || item.name || 'Unknown Product',
-              description: item.description || '',
-              category: 'Marketplace',
-              unit: 'pcs',
-              cost: 0,
-              price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
-              stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
-              minStock: 5,
-              image: item.image?.image_url_list?.[0] || item.image || '',
-              source: store.platform,
-              shopId: store.shopId,
-              shopName: store.shopName,
-              shopeeItemId: item.item_id,
-              marketplaceStoreId: store.id,
-              imported: false,
-              isActive: true,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }));
+            const productsToAdd = result.data.map(item => {
+              // Process variants/models if available
+              const variants = item.models?.map(model => ({
+                modelId: model.model_id,
+                name: model.model_name || model.name || '',
+                sku: model.model_sku || '',
+                price: model.current_price || model.price_info?.current_price || 0,
+                stock: model.stock || model.stock_info_v2?.seller_stock?.[0]?.stock || 0
+              })) || [];
+
+              return {
+                id: Date.now() + Math.random(),
+                code: `MKT${item.item_id || item.id || Date.now()}`,
+                sku: item.item_sku || item.model_sku || item.sku || '',
+                barcode: item.item_sku || '',
+                name: item.item_name || item.name || 'Unknown Product',
+                description: item.description || '',
+                category: 'Marketplace',
+                unit: 'pcs',
+                cost: 0,
+                price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
+                stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
+                minStock: 5,
+                image: item.image?.image_url_list?.[0] || item.image || '',
+                source: store.platform,
+                shopId: store.shopId,
+                shopName: store.shopName,
+                shopeeItemId: item.item_id,
+                marketplaceStoreId: store.id,
+                hasVariants: variants.length > 1,
+                variants: variants,
+                imported: false,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+            });
 
             console.log(`Processing ${productsToAdd.length} products from ${store.shopName}...`);
             
@@ -162,10 +175,20 @@ export default function MarketplaceProducts() {
             for (const product of productsToAdd) {
               // Get current products from store (fresh state)
               const currentProducts = useProductStore.getState().products;
-              const existingProduct = currentProducts.find(p => 
-                (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) ||
-                (p.source === store.platform && p.sku && product.sku && p.sku === product.sku)
-              );
+              
+              // Match by shopeeItemId (primary) or by SKU (secondary, but SKU must not be empty)
+              const existingProduct = currentProducts.find(p => {
+                // Primary match: same shopeeItemId
+                if (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) {
+                  return true;
+                }
+                // Secondary match: same platform, same SKU (but SKU must be meaningful, not empty or dash)
+                const validSku = product.sku && product.sku.trim() !== '' && product.sku.trim() !== '-';
+                if (validSku && p.source === store.platform && p.sku === product.sku) {
+                  return true;
+                }
+                return false;
+              });
               
               if (existingProduct) {
                 // Log why this product was skipped/updated
@@ -464,7 +487,21 @@ export default function MarketplaceProducts() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm font-mono">{product.sku || '-'}</span>
+                      {product.hasVariants && product.variants?.length > 0 ? (
+                        <select 
+                          className="text-sm font-mono border rounded px-2 py-1 max-w-[150px]"
+                          defaultValue=""
+                        >
+                          <option value="">{product.variants.length} Varian</option>
+                          {product.variants.map((v, idx) => (
+                            <option key={idx} value={v.sku}>
+                              {v.name || v.sku || `Varian ${idx + 1}`} - Stok: {v.stock}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm font-mono">{product.sku || '-'}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
