@@ -64,10 +64,16 @@ export default function MarketplaceOrders() {
           // Include both cancellation and return orders
           matchStatus = order.status === 'cancelled' || 
             order.status === 'return' ||
+            order.isReturn === true ||
             order.shopeeStatus === 'CANCELLED' || 
             order.shopeeStatus === 'IN_CANCEL' ||
             order.shopeeStatus === 'TO_RETURN' ||
-            order.shopeeStatus === 'RETURN';
+            order.shopeeStatus === 'RETURN' ||
+            order.shopeeStatus === 'REQUESTED' ||
+            order.shopeeStatus === 'ACCEPTED' ||
+            order.shopeeStatus === 'JUDGING' ||
+            order.shopeeStatus === 'REFUND_PAID' ||
+            order.shopeeStatus === 'PROCESSING';
         } else {
           matchStatus = order.status === filterStatus;
         }
@@ -99,10 +105,16 @@ export default function MarketplaceOrders() {
   const cancelledCount = marketplaceOrders.filter(o => 
     o.status === 'cancelled' || 
     o.status === 'return' ||
+    o.isReturn === true ||
     o.shopeeStatus === 'CANCELLED' || 
     o.shopeeStatus === 'IN_CANCEL' ||
     o.shopeeStatus === 'TO_RETURN' ||
-    o.shopeeStatus === 'RETURN'
+    o.shopeeStatus === 'RETURN' ||
+    o.shopeeStatus === 'REQUESTED' ||
+    o.shopeeStatus === 'ACCEPTED' ||
+    o.shopeeStatus === 'JUDGING' ||
+    o.shopeeStatus === 'REFUND_PAID' ||
+    o.shopeeStatus === 'PROCESSING'
   ).length;
   const totalRevenue = marketplaceOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
@@ -214,6 +226,77 @@ export default function MarketplaceOrders() {
           console.error(`Error syncing orders from ${store.shopName}:`, storeError);
           errors.push(`${store.shopName}: ${storeError.message}`);
         }
+        
+        // Also sync returns/refunds
+        try {
+          console.log(`Syncing returns from ${store.shopName}...`);
+          const returnsResult = await shopeeApi.syncReturns(store);
+          
+          console.log('Shopee syncReturns result:', returnsResult);
+          
+          if (returnsResult.success && returnsResult.data && returnsResult.data.length > 0) {
+            let totalReturns = 0;
+            
+            for (const ret of returnsResult.data) {
+              const currentTransactions = useTransactionStore.getState().transactions;
+              const existingReturn = currentTransactions.find(t => 
+                t.returnSn === ret.return_sn ||
+                t.id === `RET${ret.return_sn}`
+              );
+              
+              // Map return status
+              const returnStatusMap = {
+                'REQUESTED': 'return_requested',
+                'ACCEPTED': 'return_accepted',
+                'CANCELLED': 'return_cancelled',
+                'JUDGING': 'return_judging',
+                'REFUND_PAID': 'refund_paid',
+                'CLOSED': 'return_closed',
+                'PROCESSING': 'return_processing'
+              };
+              
+              const returnData = {
+                id: `RET${ret.return_sn}`,
+                transactionCode: ret.order_sn || `RET${ret.return_sn}`,
+                returnSn: ret.return_sn,
+                shopeeOrderId: ret.order_sn,
+                source: 'shopee',
+                marketplaceSource: 'shopee',
+                marketplaceStoreId: store.id,
+                storeName: store.shopName,
+                customer: ret.buyer_username || ret.buyer_user_id || 'Pembeli Shopee',
+                total: -(ret.refund_amount || ret.amount || 0), // Negative for returns
+                status: returnStatusMap[ret.status] || 'return',
+                shopeeStatus: ret.status,
+                returnReason: ret.reason || ret.text_reason,
+                returnType: ret.return_type, // RETURN, REFUND_ONLY
+                isReturn: true,
+                date: ret.create_time ? new Date(ret.create_time * 1000).toISOString() : new Date().toISOString(),
+                items: ret.item?.map(item => ({
+                  name: item.name || item.item_name,
+                  sku: item.item_sku || item.model_sku,
+                  quantity: item.amount || 1,
+                  price: item.item_price || 0
+                })) || [],
+                createdAt: new Date().toISOString()
+              };
+              
+              if (!existingReturn) {
+                addTransaction(returnData);
+                totalReturns++;
+              } else {
+                updateTransaction(existingReturn.id, returnData);
+              }
+            }
+            
+            if (totalReturns > 0) {
+              console.log(`Added ${totalReturns} returns from ${store.shopName}`);
+            }
+          }
+        } catch (returnError) {
+          console.error(`Error syncing returns from ${store.shopName}:`, returnError);
+          // Don't add to errors array - returns sync is optional
+        }
       }
       
       // Show summary
@@ -269,6 +352,12 @@ export default function MarketplaceOrders() {
       cancelled: 'bg-red-100 text-red-800',
       void: 'bg-gray-100 text-gray-800',
       return: 'bg-pink-100 text-pink-800',
+      return_requested: 'bg-pink-100 text-pink-800',
+      return_accepted: 'bg-pink-100 text-pink-800',
+      return_judging: 'bg-yellow-100 text-yellow-800',
+      refund_paid: 'bg-green-100 text-green-800',
+      return_closed: 'bg-gray-100 text-gray-800',
+      return_processing: 'bg-blue-100 text-blue-800',
       // Shopee status (uppercase)
       UNPAID: 'bg-yellow-100 text-yellow-800',
       READY_TO_SHIP: 'bg-orange-100 text-orange-800',
@@ -279,6 +368,12 @@ export default function MarketplaceOrders() {
       IN_CANCEL: 'bg-red-100 text-red-800',
       TO_RETURN: 'bg-pink-100 text-pink-800',
       RETURN: 'bg-pink-100 text-pink-800',
+      REQUESTED: 'bg-pink-100 text-pink-800',
+      ACCEPTED: 'bg-pink-100 text-pink-800',
+      JUDGING: 'bg-yellow-100 text-yellow-800',
+      REFUND_PAID: 'bg-green-100 text-green-800',
+      PROCESSING: 'bg-blue-100 text-blue-800',
+      CLOSED: 'bg-gray-100 text-gray-800',
     };
     const labels = {
       // Local status - matching Shopee Seller labels
@@ -290,6 +385,12 @@ export default function MarketplaceOrders() {
       cancelled: 'Dibatalkan',
       void: 'Void',
       return: 'Pengembalian',
+      return_requested: 'Pengajuan Pengembalian',
+      return_accepted: 'Pengembalian Diterima',
+      return_judging: 'Dalam Pengecekan',
+      refund_paid: 'Dana Dikembalikan',
+      return_closed: 'Pengembalian Ditutup',
+      return_processing: 'Sedang Diproses',
       // Shopee status (uppercase) - matching Shopee Seller labels
       UNPAID: 'Belum Bayar',
       READY_TO_SHIP: 'Perlu Dikirim',
@@ -300,6 +401,12 @@ export default function MarketplaceOrders() {
       IN_CANCEL: 'Dalam Pembatalan',
       TO_RETURN: 'Pengajuan Pengembalian',
       RETURN: 'Pengembalian',
+      REQUESTED: 'Pengajuan Pengembalian',
+      ACCEPTED: 'Pengembalian Diterima',
+      JUDGING: 'Dalam Pengecekan',
+      REFUND_PAID: 'Dana Dikembalikan',
+      PROCESSING: 'Sedang Diproses',
+      CLOSED: 'Ditutup',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>

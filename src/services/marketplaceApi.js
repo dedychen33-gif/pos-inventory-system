@@ -185,6 +185,37 @@ export const shopeeApi = {
     }
   },
 
+  // Sync returns/refunds from Shopee
+  syncReturns: async (store) => {
+    try {
+      const api = createApiInstance('shopee', 60000);
+      const result = await api.get('/returns', {
+        params: {
+          shop_id: store.shopId,
+          access_token: store.credentials?.accessToken,
+          partner_id: store.credentials?.partnerId,
+          partner_key: store.credentials?.partnerKey,
+          fetch_all: 'true'
+        }
+      });
+      
+      // Parse response
+      const returns = result?.returns || result?.data?.response?.return_list || result?.response?.return_list || [];
+      const totalCount = result?.count || returns.length;
+      
+      console.log('Shopee syncReturns result:', { returnCount: returns.length, totalCount });
+      
+      return { 
+        success: result.success !== false, 
+        data: returns,
+        count: totalCount
+      };
+    } catch (error) {
+      console.error('Sync returns error:', error);
+      return { success: false, data: [], count: 0, error: error.message };
+    }
+  },
+
   // Get orders by specific status
   getOrdersByStatus: async (store, status, dateRange = {}) => {
     const api = createApiInstance('shopee');
