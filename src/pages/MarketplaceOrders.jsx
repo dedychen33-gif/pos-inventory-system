@@ -125,7 +125,7 @@ export default function MarketplaceOrders() {
               
               const orderData = {
                 id: order.order_sn,
-                transactionCode: `TRX${order.order_sn}`,
+                transactionCode: order.order_sn, // Use original Shopee order_sn, no TRX prefix
                 shopeeOrderId: order.order_sn,
                 source: 'shopee',
                 marketplaceSource: 'shopee',
@@ -416,7 +416,9 @@ export default function MarketplaceOrders() {
                 paginatedOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{order.transactionCode || order.id}</p>
+                      <p className="font-medium text-gray-900">
+                        {order.shopeeOrderId || order.transactionCode || order.id}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-600">
