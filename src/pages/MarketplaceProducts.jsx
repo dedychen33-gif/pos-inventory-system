@@ -136,14 +136,39 @@ export default function MarketplaceProducts() {
               }
               
               // Process variants/models if available
-              const variants = item.models?.map(model => ({
-                modelId: model.model_id,
-                name: model.model_name || model.name || '',
-                sku: model.model_sku || '',
-                price: model.current_price || model.price_info?.current_price || 0,
-                stock: model.stock || model.stock_info_v2?.seller_stock?.[0]?.stock || 0,
-                image: model.image?.image_url || model.image_url || item.image?.image_url_list?.[0] || ''
-              })) || [];
+              const variants = item.models?.map(model => {
+                // Debug: log model structure to find price field
+                if (model.price_info) {
+                  console.log('Model price_info:', model.model_name, model.price_info);
+                }
+                
+                // Try multiple price field locations from Shopee API
+                const variantPrice = 
+                  model.current_price || 
+                  model.price_info?.current_price ||
+                  model.price_info?.original_price ||
+                  model.original_price ||
+                  model.price ||
+                  0;
+                
+                // Try multiple stock field locations
+                const variantStock = 
+                  model.stock ||
+                  model.current_stock ||
+                  model.stock_info_v2?.seller_stock?.[0]?.stock ||
+                  model.stock_info_v2?.summary_info?.total_available_stock ||
+                  model.stock_info?.current_stock ||
+                  0;
+                
+                return {
+                  modelId: model.model_id,
+                  name: model.model_name || model.name || '',
+                  sku: model.model_sku || '',
+                  price: variantPrice,
+                  stock: variantStock,
+                  image: model.image?.image_url || model.image_url || item.image?.image_url_list?.[0] || ''
+                };
+              }) || [];
 
               return {
                 id: Date.now() + Math.random(),
