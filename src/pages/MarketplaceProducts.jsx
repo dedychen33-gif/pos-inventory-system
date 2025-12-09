@@ -141,7 +141,8 @@ export default function MarketplaceProducts() {
                 name: model.model_name || model.name || '',
                 sku: model.model_sku || '',
                 price: model.current_price || model.price_info?.current_price || 0,
-                stock: model.stock || model.stock_info_v2?.seller_stock?.[0]?.stock || 0
+                stock: model.stock || model.stock_info_v2?.seller_stock?.[0]?.stock || 0,
+                image: model.image?.image_url || model.image_url || item.image?.image_url_list?.[0] || ''
               })) || [];
 
               return {
@@ -557,10 +558,24 @@ export default function MarketplaceProducts() {
                     {product.hasVariants && expandedProducts.includes(product.id) && product.variants?.map((variant, idx) => (
                       <tr key={`${product.id}-var-${idx}`} className="bg-blue-50/50">
                         <td className="px-4 py-2"></td>
-                        <td className="px-4 py-2 pl-16">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span className="text-sm text-gray-700">{variant.name || `Varian ${idx + 1}`}</span>
+                        <td className="px-4 py-2 pl-12">
+                          <div className="flex items-center gap-3">
+                            {/* Variant image - use variant image or fallback to parent product image */}
+                            {(variant.image || product.image) ? (
+                              <img 
+                                src={variant.image || product.image} 
+                                alt={variant.name}
+                                className="w-10 h-10 object-cover rounded-lg border border-blue-200"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center border border-blue-200">
+                                <Package className="text-blue-400" size={16} />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                              <span className="text-sm text-gray-700 font-medium">{variant.name || `Varian ${idx + 1}`}</span>
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-2">
