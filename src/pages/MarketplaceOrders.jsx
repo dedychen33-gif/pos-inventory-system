@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import { useTransactionStore } from '../store/transactionStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'https://naydyhkqodppdhzwkctr.supabase.co/functions/v1';
 
 export default function MarketplaceOrders() {
   const navigate = useNavigate();
@@ -15,9 +18,10 @@ export default function MarketplaceOrders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
-  const { transactions } = useTransactionStore();
-  const { stores } = useMarketplaceStore();
+  const { transactions, addTransaction } = useTransactionStore();
+  const { stores, shopeeConfig } = useMarketplaceStore();
 
   // Filter marketplace orders only
   const marketplaceOrders = useMemo(() => {
@@ -65,13 +69,70 @@ export default function MarketplaceOrders() {
   const completedCount = marketplaceOrders.filter(o => o.status === 'completed').length;
   const totalRevenue = marketplaceOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
-  // Handle sync
+  // Handle sync - real API call
   const handleSync = async () => {
     setIsSyncing(true);
+    setSyncMessage('Menyinkronkan pesanan...');
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      alert('Sinkronisasi pesanan berhasil!');
+      // Get active Shopee stores
+      const shopeeStores = stores.filter(s => s.platform === 'shopee' && s.isActive);
+      
+      if (shopeeStores.length === 0) {
+        setSyncMessage('Tidak ada toko Shopee yang aktif');
+        alert('Tidak ada toko Shopee yang aktif. Silakan hubungkan toko dulu.');
+        return;
+      }
+      
+      let totalOrders = 0;
+      
+      for (const store of shopeeStores) {
+        try {
+          // Call Supabase Edge Function for orders
+          const { data, error } = await supabase.functions.invoke('shopee-api', {
+            body: {
+              action: 'getOrders',
+              shopId: store.shopId,
+              accessToken: store.accessToken
+            }
+          });
+          
+          if (error) {
+            console.error(`Error syncing ${store.shopName}:`, error);
+            continue;
+          }
+          
+          if (data?.orders) {
+            // Add orders to transaction store
+            data.orders.forEach(order => {
+              const existingOrder = transactions.find(t => t.id === order.order_sn || t.transactionCode === order.order_sn);
+              if (!existingOrder) {
+                addTransaction({
+                  id: order.order_sn,
+                  transactionCode: order.order_sn,
+                  source: 'shopee',
+                  marketplaceSource: 'shopee',
+                  marketplaceStoreId: store.id,
+                  storeName: store.shopName,
+                  customer: order.buyer_username || 'Pembeli Shopee',
+                  total: order.total_amount || 0,
+                  status: order.order_status?.toLowerCase() || 'pending',
+                  date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
+                  items: order.item_list || []
+                });
+                totalOrders++;
+              }
+            });
+          }
+        } catch (storeError) {
+          console.error(`Error syncing store ${store.shopName}:`, storeError);
+        }
+      }
+      
+      setSyncMessage(`Berhasil sync ${totalOrders} pesanan baru!`);
+      alert(`Sinkronisasi pesanan berhasil! ${totalOrders} pesanan baru.`);
     } catch (error) {
+      setSyncMessage('Gagal sinkronisasi: ' + error.message);
       alert('Gagal sinkronisasi: ' + error.message);
     } finally {
       setIsSyncing(false);

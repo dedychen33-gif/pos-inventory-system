@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background hexagon shape with shadow -->
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+  
+  <!-- White background circle -->
+  <circle cx="256" cy="256" r="250" fill="white"/>
+  
+  <!-- SJA Logo - Green hexagon style -->
+  <g transform="translate(256, 256)" filter="url(#shadow)">
+    <!-- Main hexagon outline -->
+    <polygon 
+      points="0,-180 156,-90 156,90 0,180 -156,90 -156,-90" 
+      fill="none" 
+      stroke="#4ade80" 
+      stroke-width="28"
+      stroke-linejoin="round"
+    />
+    
+    <!-- S letter -->
+    <g transform="translate(-85, 0)">
+      <path 
+        d="M-15,-70 L25,-70 L25,-45 L-5,-45 L-5,-15 L25,-15 L25,70 L-25,70 L-25,45 L5,45 L5,15 L-25,15 L-25,-70 Z" 
+        fill="#4ade80"
+      />
+    </g>
+    
+    <!-- J letter -->
+    <g transform="translate(0, 0)">
+      <path 
+        d="M-20,-70 L20,-70 L20,45 L-5,70 L-25,50 L-5,30 L0,30 L0,-45 L-20,-45 Z" 
+        fill="#4ade80"
+      />
+    </g>
+    
+    <!-- A letter -->
+    <g transform="translate(85, 0)">
+      <path 
+        d="M0,-70 L35,70 L10,70 L5,45 L-5,45 L-10,70 L-35,70 L0,-70 Z M0,-20 L-5,20 L5,20 Z" 
+        fill="#4ade80"
+        fill-rule="evenodd"
+      />
+    </g>
+  </g>
+</svg>

@@ -16,19 +16,46 @@ const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // Handle GET request (for verification)
+  if (req.method === 'GET') {
+    return new Response(JSON.stringify({ status: 'ok', message: 'Webhook endpoint ready' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200
+    })
+  }
+
   try {
     const url = new URL(req.url)
-    const marketplace = url.pathname.split('/').pop() || 'unknown'
+    const pathParts = url.pathname.split('/')
+    const marketplace = pathParts[pathParts.length - 1] || 'shopee'
     
-    console.log(`Received webhook from: ${marketplace}`)
+    console.log(`Received webhook from: ${marketplace}, method: ${req.method}`)
     
-    const body = await req.json()
+    // Try to parse body, return success even if empty (for Shopee verification)
+    let body = {}
+    try {
+      const text = await req.text()
+      if (text) {
+        body = JSON.parse(text)
+      }
+    } catch (e) {
+      console.log('No JSON body or parse error:', e)
+    }
+    
     console.log('Webhook body:', JSON.stringify(body))
+
+    // If body is empty or it's a verification request, return success
+    if (!body || Object.keys(body).length === 0) {
+      return new Response(JSON.stringify({ success: true, message: 'Webhook verified' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      })
+    }
 
     let result
     
@@ -46,19 +73,21 @@ serve(async (req) => {
         result = await handleTiktokWebhook(body)
         break
       default:
-        result = { success: false, error: 'Unknown marketplace' }
+        // Default to shopee if unknown
+        result = await handleShopeeWebhook(req, body)
     }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: result.success ? 200 : 400
+      status: 200  // Always return 200 for Shopee
     })
 
   } catch (error) {
     console.error('Webhook error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Still return 200 to acknowledge receipt
+    return new Response(JSON.stringify({ success: true, error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
+      status: 200
     })
   }
 })
