@@ -75,40 +75,14 @@ async function getOrderDetails(partnerId, partnerKey, shopId, accessToken, order
   const apiPath = '/api/v2/order/get_order_detail';
   const sign = generateSignatureV2(partnerId, partnerKey, apiPath, timestamp, accessToken, shopId);
   
-  // Request all important optional fields for complete order info
+  // Only request essential fields to reduce response size and API time
   const optionalFields = [
     'buyer_user_id',
     'buyer_username',
-    'recipient_address',
-    'actual_shipping_fee',
-    'estimated_shipping_fee',
-    'goods_to_declare',
-    'note',
-    'note_update_time',
     'item_list',
-    'pay_time',
-    'dropshipper',
-    'dropshipper_phone',
-    'split_up',
-    'buyer_cancel_reason',
-    'cancel_by',
-    'cancel_reason',
-    'actual_shipping_fee_confirmed',
-    'buyer_cpf_id',
-    'fulfillment_flag',
-    'pickup_done_time',
-    'package_list',
-    'shipping_carrier',
-    'payment_method',
     'total_amount',
-    'buyer_username',
-    'invoice_data',
-    'checkout_shipping_carrier',
-    'reverse_shipping_fee',
-    'order_chargeable_weight_gram',
-    'edt',
-    'prescription_images',
-    'prescription_check_status'
+    'actual_shipping_fee',
+    'payment_method'
   ].join(',');
   
   const queryParams = new URLSearchParams({
@@ -132,6 +106,11 @@ async function getOrderDetails(partnerId, partnerKey, shopId, accessToken, order
 
   return await makeRequest(options);
 }
+
+// Vercel config for longer timeout (requires Pro plan for >10s)
+export const config = {
+  maxDuration: 60
+};
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -158,15 +137,16 @@ export default async function handler(req, res) {
       });
     }
 
-    // Default time range: last 15 days
+    // Default time range: last 7 days (reduced from 15 for faster sync)
     const now = Math.floor(Date.now() / 1000);
-    const fifteenDaysAgo = now - (15 * 24 * 60 * 60);
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60);
     
-    const timeFrom = parseInt(req.query.time_from) || fifteenDaysAgo;
+    const timeFrom = parseInt(req.query.time_from) || sevenDaysAgo;
     const timeTo = parseInt(req.query.time_to) || now;
     const pageSize = parseInt(req.query.page_size) || 50;
     const orderStatus = req.query.order_status || 'ALL';
     const fetchAllStatuses = req.query.fetch_all_statuses === 'true';
+    const maxOrdersPerStatus = parseInt(req.query.max_per_status) || 100; // Limit orders per status
     let cursor = req.query.cursor || '';
     
     // Shopee Order Statuses:
@@ -179,6 +159,8 @@ export default async function handler(req, res) {
     // CANCELLED - Batal
     // INVOICE_PENDING - Menunggu Invoice
     
+    // Only fetch important statuses to reduce API calls
+    const PRIORITY_STATUSES = ['READY_TO_SHIP', 'SHIPPED', 'COMPLETED'];
     const ALL_STATUSES = ['READY_TO_SHIP', 'PROCESSED', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'IN_CANCEL'];
     
     // If fetch_all is true, loop through all pages
@@ -186,15 +168,15 @@ export default async function handler(req, res) {
       let allOrders = [];
       let statusSummary = {};
       
-      // Determine which statuses to fetch
-      const statusesToFetch = fetchAllStatuses ? ALL_STATUSES : (orderStatus === 'ALL' ? ALL_STATUSES : [orderStatus]);
+      // Use priority statuses by default, all statuses only if explicitly requested
+      const statusesToFetch = fetchAllStatuses ? ALL_STATUSES : (orderStatus === 'ALL' ? PRIORITY_STATUSES : [orderStatus]);
       
       for (const status of statusesToFetch) {
         let hasMore = true;
         cursor = '';
         let statusCount = 0;
         
-        while (hasMore) {
+        while (hasMore && statusCount < maxOrdersPerStatus) {
           const result = await getOrderList(partnerId, partnerKey, shopId, accessToken, timeFrom, timeTo, pageSize, status, cursor);
           
           if (result.error) {
