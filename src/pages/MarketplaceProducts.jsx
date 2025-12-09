@@ -153,9 +153,11 @@ export default function MarketplaceProducts() {
               updatedAt: new Date().toISOString()
             }));
 
-            // Add or update each product
+            // Add or update each product - use getState() to get fresh products list
             for (const product of productsToAdd) {
-              const existingProduct = products.find(p => 
+              // Get current products from store (fresh state)
+              const currentProducts = useProductStore.getState().products;
+              const existingProduct = currentProducts.find(p => 
                 (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) ||
                 (p.source === store.platform && p.sku && product.sku && p.sku === product.sku)
               );
