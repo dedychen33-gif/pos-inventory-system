@@ -97,7 +97,8 @@ export default function MarketplaceOrders() {
           console.log('Shopee syncOrders result:', result);
           console.log('Orders count:', result.data?.length);
           if (result.data?.[0]) {
-            console.log('First order sample:', JSON.stringify(result.data[0], null, 2));
+            console.log('First order ALL FIELDS:', JSON.stringify(result.data[0], null, 2));
+            console.log('Order keys:', Object.keys(result.data[0]));
           }
           
           if (result.success && result.data && result.data.length > 0) {
