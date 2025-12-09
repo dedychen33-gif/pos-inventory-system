@@ -37,7 +37,8 @@ export default function MarketplaceOrders() {
     return marketplaceOrders.filter(order => {
       const matchSearch = !searchTerm || 
         order.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.transactionCode?.toLowerCase().includes(searchTerm.toLowerCase());
+        order.transactionCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.customer?.toLowerCase().includes(searchTerm.toLowerCase());
 
       let matchStore = filterStore === 'all';
       if (!matchStore && filterStore !== 'all') {
@@ -48,7 +49,23 @@ export default function MarketplaceOrders() {
         }
       }
 
-      const matchStatus = filterStatus === 'all' || order.status === filterStatus;
+      // Status filter matching Shopee tabs
+      let matchStatus = filterStatus === 'all';
+      if (!matchStatus) {
+        if (filterStatus === 'unpaid') {
+          matchStatus = order.status === 'pending' || order.shopeeStatus === 'UNPAID';
+        } else if (filterStatus === 'ready_to_ship') {
+          matchStatus = order.status === 'ready_to_ship' || order.shopeeStatus === 'READY_TO_SHIP' || order.shopeeStatus === 'PROCESSED';
+        } else if (filterStatus === 'shipped') {
+          matchStatus = order.status === 'shipped' || order.shopeeStatus === 'SHIPPED';
+        } else if (filterStatus === 'completed') {
+          matchStatus = order.status === 'completed' || order.shopeeStatus === 'COMPLETED';
+        } else if (filterStatus === 'cancelled') {
+          matchStatus = order.status === 'cancelled' || order.shopeeStatus === 'CANCELLED' || order.shopeeStatus === 'IN_CANCEL';
+        } else {
+          matchStatus = order.status === filterStatus;
+        }
+      }
 
       return matchSearch && matchStore && matchStatus;
     });
@@ -63,9 +80,22 @@ export default function MarketplaceOrders() {
 
   // Stats
   const totalOrderCount = marketplaceOrders.length;
-  const pendingCount = marketplaceOrders.filter(o => o.status === 'pending' || o.status === 'ready_to_ship').length;
-  const completedCount = marketplaceOrders.filter(o => o.status === 'completed').length;
+  const unpaidCount = marketplaceOrders.filter(o => o.status === 'pending' || o.shopeeStatus === 'UNPAID').length;
+  const readyToShipCount = marketplaceOrders.filter(o => o.status === 'ready_to_ship' || o.shopeeStatus === 'READY_TO_SHIP' || o.shopeeStatus === 'PROCESSED').length;
+  const shippedCount = marketplaceOrders.filter(o => o.status === 'shipped' || o.shopeeStatus === 'SHIPPED').length;
+  const completedCount = marketplaceOrders.filter(o => o.status === 'completed' || o.shopeeStatus === 'COMPLETED').length;
+  const cancelledCount = marketplaceOrders.filter(o => o.status === 'cancelled' || o.shopeeStatus === 'CANCELLED' || o.shopeeStatus === 'IN_CANCEL').length;
   const totalRevenue = marketplaceOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+  // Tab filter options matching Shopee Seller
+  const statusTabs = [
+    { key: 'all', label: 'Semua', count: totalOrderCount },
+    { key: 'unpaid', label: 'Belum Bayar', count: unpaidCount },
+    { key: 'ready_to_ship', label: 'Perlu Dikirim', count: readyToShipCount },
+    { key: 'shipped', label: 'Dikirim', count: shippedCount },
+    { key: 'completed', label: 'Selesai', count: completedCount },
+    { key: 'cancelled', label: 'Pembatalan', count: cancelledCount },
+  ];
 
   // Handle sync - using Vercel API
   const handleSync = async () => {
@@ -290,12 +320,12 @@ export default function MarketplaceOrders() {
           </div>
         </div>
         <div className="card flex items-center gap-3">
-          <div className="p-3 bg-yellow-100 rounded-lg">
-            <Clock className="text-yellow-600" size={24} />
+          <div className="p-3 bg-orange-100 rounded-lg">
+            <Package className="text-orange-600" size={24} />
           </div>
           <div>
-            <p className="text-sm text-gray-600">Menunggu</p>
-            <p className="text-2xl font-bold">{pendingCount}</p>
+            <p className="text-sm text-gray-600">Perlu Dikirim</p>
+            <p className="text-2xl font-bold">{readyToShipCount}</p>
           </div>
         </div>
         <div className="card flex items-center gap-3">
@@ -315,6 +345,37 @@ export default function MarketplaceOrders() {
             <p className="text-sm text-gray-600">Total Pendapatan</p>
             <p className="text-xl font-bold">Rp {totalRevenue.toLocaleString('id-ID')}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Status Tabs - Like Shopee Seller */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="flex overflow-x-auto border-b">
+          {statusTabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setFilterStatus(tab.key);
+                setCurrentPage(1);
+              }}
+              className={`flex-shrink-0 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                filterStatus === tab.key
+                  ? 'border-orange-500 text-orange-600 bg-orange-50'
+                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                  filterStatus === tab.key
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -353,22 +414,6 @@ export default function MarketplaceOrders() {
                 {store.shopName} ({store.platform})
               </option>
             ))}
-          </select>
-
-          <select
-            value={filterStatus}
-            onChange={(e) => {
-              setFilterStatus(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="input w-full md:w-48"
-          >
-            <option value="all">Semua Status</option>
-            <option value="pending">Menunggu</option>
-            <option value="processing">Diproses</option>
-            <option value="shipped">Dikirim</option>
-            <option value="completed">Selesai</option>
-            <option value="cancelled">Dibatalkan</option>
           </select>
 
           <div className="flex items-center gap-2">
