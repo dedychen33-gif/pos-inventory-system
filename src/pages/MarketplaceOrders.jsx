@@ -88,14 +88,20 @@ export default function MarketplaceOrders() {
       
       for (const store of shopeeStores) {
         try {
+          console.log('Syncing store:', store.shopName, 'Shop ID:', store.shopId);
+          
           // Call Supabase Edge Function for orders
           const { data, error } = await supabase.functions.invoke('shopee-api', {
             body: {
               action: 'getOrders',
-              shopId: store.shopId,
-              accessToken: store.accessToken
+              shopId: store.shopId?.toString(),
+              accessToken: store.accessToken,
+              partnerId: store.partnerId?.toString(),
+              partnerKey: store.partnerKey
             }
           });
+          
+          console.log('Sync result for', store.shopName, ':', data, error);
           
           if (error) {
             console.error(`Error syncing ${store.shopName}:`, error);
