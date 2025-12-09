@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Search, ShoppingCart, RefreshCw, Package, Store,
-  Filter, Eye, Check, Clock, AlertCircle, Truck, XCircle, Trash2
+  Filter, Eye, Check, Clock, AlertCircle, Truck, XCircle, Trash2, ExternalLink
 } from 'lucide-react';
 import { useTransactionStore } from '../store/transactionStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
@@ -417,9 +417,22 @@ export default function MarketplaceOrders() {
                 paginatedOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">
-                        {order.shopeeOrderId || order.transactionCode || order.id}
-                      </p>
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {order.shopeeOrderId || order.transactionCode || order.id}
+                        </p>
+                        {order.source === 'shopee' && order.shopeeOrderId && (
+                          <a 
+                            href={`https://seller.shopee.co.id/portal/sale/order/${order.shopeeOrderId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1 mt-1"
+                          >
+                            <ExternalLink size={12} />
+                            Buka di Shopee
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-600">
@@ -469,13 +482,29 @@ export default function MarketplaceOrders() {
                       {getStatusBadge(order.status)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button className="text-primary hover:text-blue-700">
-                        <Eye size={18} />
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          className="text-primary hover:text-blue-700"
+                          title="Lihat detail"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        {order.source === 'shopee' && order.shopeeOrderId && (
+                          <a 
+                            href={`https://seller.shopee.co.id/portal/sale/order/${order.shopeeOrderId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-orange-500 hover:text-orange-700"
+                            title="Buka di Shopee Seller"
+                          >
+                            <ExternalLink size={18} />
+                          </a>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
-              )}}
+              )}
             </tbody>
           </table>
         </div>
