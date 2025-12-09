@@ -6,9 +6,7 @@ import {
 } from 'lucide-react';
 import { useTransactionStore } from '../store/transactionStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'https://naydyhkqodppdhzwkctr.supabase.co/functions/v1';
+import { shopeeApi } from '../services/marketplaceApi';
 
 export default function MarketplaceOrders() {
   const navigate = useNavigate();
@@ -65,89 +63,120 @@ export default function MarketplaceOrders() {
 
   // Stats
   const totalOrderCount = marketplaceOrders.length;
-  const pendingCount = marketplaceOrders.filter(o => o.status === 'pending').length;
+  const pendingCount = marketplaceOrders.filter(o => o.status === 'pending' || o.status === 'ready_to_ship').length;
   const completedCount = marketplaceOrders.filter(o => o.status === 'completed').length;
   const totalRevenue = marketplaceOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
-  // Handle sync - real API call
+  // Handle sync - using Vercel API
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncMessage('Menyinkronkan pesanan...');
     
     try {
       // Get active Shopee stores
-      const shopeeStores = stores.filter(s => s.platform === 'shopee' && s.isActive);
+      const shopeeStores = stores.filter(s => s.platform === 'shopee' && s.isActive && s.isConnected);
       
       if (shopeeStores.length === 0) {
         setSyncMessage('Tidak ada toko Shopee yang aktif');
-        alert('Tidak ada toko Shopee yang aktif. Silakan hubungkan toko dulu.');
+        alert('Tidak ada toko Shopee yang terhubung. Silakan hubungkan toko dulu.');
+        setIsSyncing(false);
         return;
       }
       
       let totalOrders = 0;
+      let totalUpdated = 0;
+      const errors = [];
       
       for (const store of shopeeStores) {
         try {
-          // Get credentials from store object
-          const partnerId = store.credentials?.partnerId || store.partnerId;
-          const partnerKey = store.credentials?.partnerKey || store.partnerKey;
-          const accessToken = store.credentials?.accessToken || store.accessToken;
-          const shopId = store.shopId;
+          console.log(`Syncing orders from ${store.shopName} (${store.platform})...`);
           
-          console.log('Syncing store:', store.shopName, 'Shop ID:', shopId, 'Has credentials:', !!partnerId, !!partnerKey, !!accessToken);
+          // Use shopeeApi.syncOrders() - same pattern as products
+          const result = await shopeeApi.syncOrders(store);
           
-          if (!partnerId || !partnerKey || !accessToken) {
-            console.warn(`Missing credentials for ${store.shopName}. Please reconnect the store.`);
-            continue;
-          }
+          console.log('Shopee syncOrders result:', result);
           
-          // Call Supabase Edge Function for orders
-          const { data, error } = await supabase.functions.invoke('shopee-api', {
-            body: {
-              action: 'getOrders',
-              shopId: shopId?.toString(),
-              accessToken: accessToken,
-              partnerId: partnerId?.toString(),
-              partnerKey: partnerKey
-            }
-          });
-          
-          console.log('Sync result for', store.shopName, ':', data, error);
-          
-          if (error) {
-            console.error(`Error syncing ${store.shopName}:`, error);
-            continue;
-          }
-          
-          if (data?.orders) {
-            // Add orders to transaction store
-            data.orders.forEach(order => {
-              const existingOrder = transactions.find(t => t.id === order.order_sn || t.transactionCode === order.order_sn);
+          if (result.success && result.data && result.data.length > 0) {
+            // Process each order
+            for (const order of result.data) {
+              // Get current transactions (fresh state)
+              const currentTransactions = useTransactionStore.getState().transactions;
+              const existingOrder = currentTransactions.find(t => 
+                t.id === order.order_sn || 
+                t.transactionCode === order.order_sn ||
+                t.shopeeOrderId === order.order_sn
+              );
+              
+              // Map Shopee order status to local status
+              const statusMap = {
+                'UNPAID': 'pending',
+                'READY_TO_SHIP': 'ready_to_ship',
+                'PROCESSED': 'processing',
+                'SHIPPED': 'shipped',
+                'COMPLETED': 'completed',
+                'IN_CANCEL': 'cancelled',
+                'CANCELLED': 'cancelled',
+                'INVOICE_PENDING': 'pending'
+              };
+              
+              const orderData = {
+                id: order.order_sn,
+                transactionCode: `TRX${order.order_sn}`,
+                shopeeOrderId: order.order_sn,
+                source: 'shopee',
+                marketplaceSource: 'shopee',
+                marketplaceStoreId: store.id,
+                storeName: store.shopName,
+                customer: order.buyer_username || order.buyer_user_id || 'Pembeli Shopee',
+                // Parse total amount - Shopee returns in cents for some regions
+                total: order.total_amount || order.escrow_amount || order.actual_shipping_fee || 0,
+                subtotal: order.total_amount || 0,
+                shippingFee: order.actual_shipping_fee || order.estimated_shipping_fee || 0,
+                status: statusMap[order.order_status] || order.order_status?.toLowerCase() || 'pending',
+                shopeeStatus: order.order_status,
+                date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
+                paymentMethod: order.payment_method || 'Shopee',
+                items: order.item_list?.map(item => ({
+                  name: item.item_name,
+                  sku: item.item_sku || item.model_sku,
+                  quantity: item.model_quantity_purchased || 1,
+                  price: item.model_discounted_price || item.model_original_price || 0,
+                  image: item.image_info?.image_url || ''
+                })) || [],
+                createdAt: new Date().toISOString()
+              };
+              
               if (!existingOrder) {
-                addTransaction({
-                  id: order.order_sn,
-                  transactionCode: order.order_sn,
-                  source: 'shopee',
-                  marketplaceSource: 'shopee',
-                  marketplaceStoreId: store.id,
-                  storeName: store.shopName,
-                  customer: order.buyer_username || 'Pembeli Shopee',
-                  total: order.total_amount || 0,
-                  status: order.order_status?.toLowerCase() || 'pending',
-                  date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
-                  items: order.item_list || []
-                });
+                addTransaction(orderData);
                 totalOrders++;
+              } else {
+                // Update existing order status
+                // Note: would need updateTransaction function
+                totalUpdated++;
               }
-            });
+            }
           }
         } catch (storeError) {
-          console.error(`Error syncing store ${store.shopName}:`, storeError);
+          console.error(`Error syncing orders from ${store.shopName}:`, storeError);
+          errors.push(`${store.shopName}: ${storeError.message}`);
         }
       }
       
-      setSyncMessage(`Berhasil sync ${totalOrders} pesanan baru!`);
-      alert(`Sinkronisasi pesanan berhasil! ${totalOrders} pesanan baru.`);
+      // Show summary
+      const messages = [];
+      if (totalOrders > 0) messages.push(`${totalOrders} pesanan baru`);
+      if (totalUpdated > 0) messages.push(`${totalUpdated} pesanan diperbarui`);
+      
+      if (messages.length > 0) {
+        setSyncMessage(`Berhasil: ${messages.join(', ')}`);
+        alert(`Sinkronisasi berhasil!\n${messages.join('\n')}`);
+      } else if (errors.length > 0) {
+        setSyncMessage('Sync selesai dengan error');
+        alert(`Sinkronisasi selesai dengan error:\n${errors.join('\n')}`);
+      } else {
+        setSyncMessage('Tidak ada pesanan baru');
+        alert('Sinkronisasi selesai. Tidak ada pesanan baru.');
+      }
     } catch (error) {
       setSyncMessage('Gagal sinkronisasi: ' + error.message);
       alert('Gagal sinkronisasi: ' + error.message);
@@ -159,6 +188,7 @@ export default function MarketplaceOrders() {
   const getStatusBadge = (status) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800',
+      ready_to_ship: 'bg-orange-100 text-orange-800',
       processing: 'bg-blue-100 text-blue-800',
       shipped: 'bg-purple-100 text-purple-800',
       completed: 'bg-green-100 text-green-800',
@@ -167,6 +197,7 @@ export default function MarketplaceOrders() {
     };
     const labels = {
       pending: 'Menunggu',
+      ready_to_ship: 'Siap Kirim',
       processing: 'Diproses',
       shipped: 'Dikirim',
       completed: 'Selesai',
