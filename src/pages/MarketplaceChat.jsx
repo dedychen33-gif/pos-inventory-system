@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Search, Send, RefreshCw, MessageCircle, Store,
   Image, Paperclip, Smile, Check, CheckCheck, Clock, Filter,
   User, Phone, ShoppingBag, ChevronDown, MoreVertical, Star,
-  Volume2, VolumeX
+  Volume2, VolumeX, Cloud, CloudOff
 } from 'lucide-react';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -14,6 +14,8 @@ import {
   requestNotificationPermission,
   notifyNewChat
 } from '../services/chatNotification';
+import { isSupabaseConfigured } from '../lib/supabase';
+import * as supabaseChat from '../services/supabaseChatService';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -206,9 +208,72 @@ export default function MarketplaceChat() {
   const [showStoreFilter, setShowStoreFilter] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(chatNotification?.soundEnabled ?? true);
   const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Check Supabase connection
+  useEffect(() => {
+    setIsSupabaseConnected(isSupabaseConfigured());
+  }, []);
+
+  // Subscribe to Supabase realtime messages
+  useEffect(() => {
+    if (!isSupabaseConnected) return;
+    
+    // Subscribe to all new messages for notifications
+    const unsubscribe = supabaseChat.subscribeToAllMessages((message, conversation) => {
+      if (conversation) {
+        // Add to local state
+        const localConv = {
+          id: conversation.conversation_id,
+          platform: conversation.marketplace,
+          storeId: conversation.shop_id,
+          storeName: `Toko ${conversation.marketplace}`,
+          customerId: conversation.buyer_id,
+          customerName: conversation.buyer_name || 'Pembeli',
+          lastMessage: message.content,
+          lastMessageTime: message.sent_at,
+          unread: conversation.unread_count || 1,
+          isOnline: true
+        };
+        addConversation(localConv);
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [isSupabaseConnected, addConversation]);
+
+  // Load conversations from Supabase on mount
+  useEffect(() => {
+    const loadSupabaseConversations = async () => {
+      if (!isSupabaseConnected) return;
+      
+      try {
+        const convs = await supabaseChat.getConversations();
+        convs.forEach(conv => {
+          const localConv = {
+            id: conv.conversation_id,
+            platform: conv.marketplace,
+            storeId: conv.shop_id,
+            storeName: `Toko ${conv.marketplace}`,
+            customerId: conv.buyer_id,
+            customerName: conv.buyer_name || 'Pembeli',
+            lastMessage: conv.last_message,
+            lastMessageTime: conv.last_message_time || conv.updated_at,
+            unread: conv.unread_count || 0,
+            isOnline: false
+          };
+          addConversation(localConv);
+        });
+      } catch (error) {
+        console.error('Error loading Supabase conversations:', error);
+      }
+    };
+    
+    loadSupabaseConversations();
+  }, [isSupabaseConnected, addConversation]);
 
   // Initialize notification settings and request permission
   useEffect(() => {
