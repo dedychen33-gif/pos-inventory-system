@@ -1,6 +1,11 @@
 import crypto from 'crypto';
 import https from 'https';
 
+// Vercel serverless config - extend timeout for large data fetches
+export const config = {
+  maxDuration: 60 // 60 seconds (requires Vercel Pro, Free tier max 10s)
+};
+
 // Generate signature for Shopee API v2
 function generateSignatureV2(partnerId, partnerKey, apiPath, timestamp, accessToken, shopId) {
   const baseString = `${partnerId}${apiPath}${timestamp}${accessToken}${shopId}`;
@@ -143,6 +148,7 @@ export default async function handler(req, res) {
     const itemStatus = req.query.item_status || 'NORMAL'; // NORMAL = Live products
     let offset = parseInt(req.query.offset) || 0;
     const debug = req.query.debug === 'true';
+    const skipModels = req.query.skip_models === 'true'; // Skip fetching model details for faster sync
     
     // If fetch_all is true, loop through all pages and all statuses
     if (fetchAll) {
@@ -219,47 +225,75 @@ export default async function handler(req, res) {
       
       // Now fetch details for all items in batches of 50
       const allItems = [];
+      
+      // Process detail batches in parallel (max 3 concurrent for faster processing)
+      const detailBatches = [];
       for (let i = 0; i < allItemIds.length; i += 50) {
-        const batch = allItemIds.slice(i, i + 50);
-        const detailResult = await getItemDetails(partnerId, partnerKey, shopId, accessToken, batch);
+        detailBatches.push(allItemIds.slice(i, i + 50));
+      }
+      
+      // Fetch details in parallel batches of 3
+      for (let i = 0; i < detailBatches.length; i += 3) {
+        const parallelBatches = detailBatches.slice(i, i + 3);
+        const batchResults = await Promise.all(
+          parallelBatches.map(batch => getItemDetails(partnerId, partnerKey, shopId, accessToken, batch))
+        );
         
-        if (detailResult.response && detailResult.response.item_list) {
-          // Process items with model data
-          const itemsWithModels = await Promise.all(
-            detailResult.response.item_list.map(async (item) => {
-              try {
-                const modelResult = await getModelList(partnerId, partnerKey, shopId, accessToken, item.item_id);
-                if (modelResult.response && modelResult.response.model && modelResult.response.model.length > 0) {
-                  const firstModel = modelResult.response.model[0];
-                  
-                  // Process each model to ensure price/stock fields are at model level
-                  const processedModels = modelResult.response.model.map(m => ({
-                    ...m,
-                    current_price: m.price_info?.current_price || m.price_info?.original_price || 0,
-                    original_price: m.price_info?.original_price || 0,
-                    stock: m.stock_info_v2?.seller_stock?.[0]?.stock || 
-                           m.stock_info_v2?.summary_info?.total_available_stock ||
-                           m.stock_info?.current_stock || 0
-                  }));
-                  
-                  return {
-                    ...item,
-                    models: processedModels,
-                    current_price: firstModel.price_info?.current_price || firstModel.price_info?.original_price || 0,
-                    original_price: firstModel.price_info?.original_price || 0,
-                    model_sku: firstModel.model_sku || item.item_sku || '',
-                    current_stock: firstModel.stock_info_v2?.seller_stock?.[0]?.stock || 
-                                  firstModel.stock_info?.current_stock || 
-                                  firstModel.stock_info_v2?.summary_info?.total_available_stock || 0
-                  };
-                }
-                return item;
-              } catch (e) {
-                return item;
+        for (const detailResult of batchResults) {
+          if (detailResult.response && detailResult.response.item_list) {
+            // If skipModels is true, just add items directly without fetching models
+            if (skipModels) {
+              allItems.push(...detailResult.response.item_list);
+            } else {
+              // Process items with model data - limit concurrent model fetches
+              const items = detailResult.response.item_list;
+              
+              // Process models in smaller batches to avoid overwhelming Shopee API
+              for (let j = 0; j < items.length; j += 10) {
+                const modelBatch = items.slice(j, j + 10);
+                const itemsWithModels = await Promise.all(
+                  modelBatch.map(async (item) => {
+                    try {
+                      // Only fetch models if item has variants (has_model flag or model_count > 0)
+                      if (!item.has_model && (!item.model_count || item.model_count <= 1)) {
+                        return item;
+                      }
+                      
+                      const modelResult = await getModelList(partnerId, partnerKey, shopId, accessToken, item.item_id);
+                      if (modelResult.response && modelResult.response.model && modelResult.response.model.length > 0) {
+                        const firstModel = modelResult.response.model[0];
+                        
+                        // Process each model to ensure price/stock fields are at model level
+                        const processedModels = modelResult.response.model.map(m => ({
+                          ...m,
+                          current_price: m.price_info?.current_price || m.price_info?.original_price || 0,
+                          original_price: m.price_info?.original_price || 0,
+                          stock: m.stock_info_v2?.seller_stock?.[0]?.stock || 
+                                 m.stock_info_v2?.summary_info?.total_available_stock ||
+                                 m.stock_info?.current_stock || 0
+                        }));
+                        
+                        return {
+                          ...item,
+                          models: processedModels,
+                          current_price: firstModel.price_info?.current_price || firstModel.price_info?.original_price || 0,
+                          original_price: firstModel.price_info?.original_price || 0,
+                          model_sku: firstModel.model_sku || item.item_sku || '',
+                          current_stock: firstModel.stock_info_v2?.seller_stock?.[0]?.stock || 
+                                        firstModel.stock_info?.current_stock || 
+                                        firstModel.stock_info_v2?.summary_info?.total_available_stock || 0
+                        };
+                      }
+                      return item;
+                    } catch (e) {
+                      return item;
+                    }
+                  })
+                );
+                allItems.push(...itemsWithModels);
               }
-            })
-          );
-          allItems.push(...itemsWithModels);
+            }
+          }
         }
       }
       

@@ -27,7 +27,7 @@ export default function MarketplaceProducts() {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const { products, importShopeeProducts, addProduct } = useProductStore();
+  const { products, importShopeeProducts, addProduct, updateProduct } = useProductStore();
   const { stores, updateStore } = useMarketplaceStore();
 
   // Filter marketplace products only (from Shopee, Lazada, Tokopedia, TikTok)
@@ -106,6 +106,7 @@ export default function MarketplaceProducts() {
     }
 
     let totalSynced = 0;
+    let totalUpdated = 0;
     let errors = [];
 
     try {
@@ -123,8 +124,10 @@ export default function MarketplaceProducts() {
             continue;
           }
 
+          console.log(`API returned ${result?.data?.length || 0} products from ${store.shopName}`);
+
           if (result.success && result.data && result.data.length > 0) {
-            // Transform and add products to store
+            // Transform products from API response
             const productsToAdd = result.data.map(item => ({
               id: Date.now() + Math.random(),
               code: `MKT${item.item_id || item.id || Date.now()}`,
@@ -135,8 +138,8 @@ export default function MarketplaceProducts() {
               category: 'Marketplace',
               unit: 'pcs',
               cost: 0,
-              price: item.price_info?.[0]?.current_price || item.price || 0,
-              stock: item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
+              price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
+              stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
               minStock: 5,
               image: item.image?.image_url_list?.[0] || item.image || '',
               source: store.platform,
@@ -146,22 +149,34 @@ export default function MarketplaceProducts() {
               marketplaceStoreId: store.id,
               imported: false,
               isActive: true,
-              createdAt: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             }));
 
-            // Add each product (skip duplicates based on shopeeItemId)
+            // Add or update each product
             for (const product of productsToAdd) {
-              const exists = products.find(p => 
+              const existingProduct = products.find(p => 
                 (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) ||
-                (p.sku && product.sku && p.sku === product.sku)
+                (p.source === store.platform && p.sku && product.sku && p.sku === product.sku)
               );
-              if (!exists) {
+              
+              if (existingProduct) {
+                // Update existing product with new data from marketplace
+                updateProduct(existingProduct.id, {
+                  name: product.name,
+                  price: product.price,
+                  stock: product.stock,
+                  image: product.image || existingProduct.image,
+                  updatedAt: product.updatedAt
+                });
+                totalUpdated++;
+              } else {
                 addProduct(product);
                 totalSynced++;
               }
             }
 
-            // Update store last sync time
+            // Update store last sync time and product count
             updateStore(store.id, { 
               lastSync: new Date().toISOString(),
               productCount: result.count || result.data.length
@@ -173,12 +188,17 @@ export default function MarketplaceProducts() {
         }
       }
 
-      if (totalSynced > 0) {
-        alert(`Sinkronisasi berhasil! ${totalSynced} produk baru ditambahkan.`);
+      // Show summary message
+      const messages = [];
+      if (totalSynced > 0) messages.push(`${totalSynced} produk baru ditambahkan`);
+      if (totalUpdated > 0) messages.push(`${totalUpdated} produk diperbarui`);
+      
+      if (messages.length > 0) {
+        alert(`Sinkronisasi berhasil!\n${messages.join('\n')}`);
       } else if (errors.length > 0) {
         alert(`Sinkronisasi selesai dengan error:\n${errors.join('\n')}`);
       } else {
-        alert('Sinkronisasi selesai. Tidak ada produk baru.');
+        alert('Sinkronisasi selesai. Tidak ada perubahan.');
       }
     } catch (error) {
       alert('Gagal sinkronisasi: ' + error.message);

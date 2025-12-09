@@ -107,13 +107,15 @@ export const shopeeApi = {
     try {
       const api = createApiInstance('shopee');
       // Use GET with query params for Vercel API
+      // skip_models=true for faster sync (model details not needed for basic product list)
       const result = await api.get('/products', {
         params: {
           shop_id: store.shopId,
           access_token: store.credentials?.accessToken,
           partner_id: store.credentials?.partnerId,
           partner_key: store.credentials?.partnerKey,
-          fetch_all: 'true'
+          fetch_all: 'true',
+          skip_models: 'true'
         }
       });
       
