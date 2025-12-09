@@ -75,6 +75,42 @@ async function getOrderDetails(partnerId, partnerKey, shopId, accessToken, order
   const apiPath = '/api/v2/order/get_order_detail';
   const sign = generateSignatureV2(partnerId, partnerKey, apiPath, timestamp, accessToken, shopId);
   
+  // Request all important optional fields for complete order info
+  const optionalFields = [
+    'buyer_user_id',
+    'buyer_username',
+    'recipient_address',
+    'actual_shipping_fee',
+    'estimated_shipping_fee',
+    'goods_to_declare',
+    'note',
+    'note_update_time',
+    'item_list',
+    'pay_time',
+    'dropshipper',
+    'dropshipper_phone',
+    'split_up',
+    'buyer_cancel_reason',
+    'cancel_by',
+    'cancel_reason',
+    'actual_shipping_fee_confirmed',
+    'buyer_cpf_id',
+    'fulfillment_flag',
+    'pickup_done_time',
+    'package_list',
+    'shipping_carrier',
+    'payment_method',
+    'total_amount',
+    'buyer_username',
+    'invoice_data',
+    'checkout_shipping_carrier',
+    'reverse_shipping_fee',
+    'order_chargeable_weight_gram',
+    'edt',
+    'prescription_images',
+    'prescription_check_status'
+  ].join(',');
+  
   const queryParams = new URLSearchParams({
     partner_id: partnerId,
     timestamp: timestamp.toString(),
@@ -82,7 +118,7 @@ async function getOrderDetails(partnerId, partnerKey, shopId, accessToken, order
     shop_id: shopId,
     access_token: accessToken,
     order_sn_list: orderSnList.join(','),
-    response_optional_fields: 'buyer_user_id,buyer_username,item_list,total_amount,order_status'
+    response_optional_fields: optionalFields
   });
 
   const options = {

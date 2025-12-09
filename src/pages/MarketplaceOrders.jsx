@@ -95,6 +95,10 @@ export default function MarketplaceOrders() {
           const result = await shopeeApi.syncOrders(store);
           
           console.log('Shopee syncOrders result:', result);
+          console.log('Orders count:', result.data?.length);
+          if (result.data?.[0]) {
+            console.log('First order sample:', JSON.stringify(result.data[0], null, 2));
+          }
           
           if (result.success && result.data && result.data.length > 0) {
             // Process each order
