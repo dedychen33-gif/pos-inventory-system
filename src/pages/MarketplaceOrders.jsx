@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Search, ShoppingCart, RefreshCw, Package, Store,
-  Filter, Eye, Check, Clock, AlertCircle, Truck, XCircle
+  Filter, Eye, Check, Clock, AlertCircle, Truck, XCircle, Trash2
 } from 'lucide-react';
 import { useTransactionStore } from '../store/transactionStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
@@ -18,7 +18,7 @@ export default function MarketplaceOrders() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  const { transactions, addTransaction } = useTransactionStore();
+  const { transactions, addTransaction, updateTransaction, clearMarketplaceTransactions } = useTransactionStore();
   const { stores, shopeeConfig } = useMarketplaceStore();
 
   // Filter marketplace orders only
@@ -154,8 +154,8 @@ export default function MarketplaceOrders() {
                 addTransaction(orderData);
                 totalOrders++;
               } else {
-                // Update existing order status
-                // Note: would need updateTransaction function
+                // Update existing order with fresh data
+                updateTransaction(existingOrder.id, orderData);
                 totalUpdated++;
               }
             }
@@ -187,6 +187,22 @@ export default function MarketplaceOrders() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  // Handle re-sync (clear all marketplace orders and sync fresh)
+  const handleResync = async () => {
+    if (!confirm('Hapus semua data pesanan marketplace dan sync ulang dari Shopee?\n\nIni akan menghapus semua pesanan marketplace yang tersimpan lokal.')) {
+      return;
+    }
+    
+    // Clear all marketplace transactions
+    clearMarketplaceTransactions();
+    setSyncMessage('Data pesanan marketplace dihapus. Memulai sync ulang...');
+    
+    // Wait a bit then start fresh sync
+    setTimeout(() => {
+      handleSync();
+    }, 500);
   };
 
   const getStatusBadge = (status) => {
@@ -240,14 +256,25 @@ export default function MarketplaceOrders() {
             <p className="text-gray-600">Kelola pesanan dari semua toko</p>
           </div>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="btn btn-success flex items-center gap-2"
-        >
-          <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
-          Sync Pesanan
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleResync}
+            disabled={isSyncing}
+            className="btn btn-outline flex items-center gap-2 text-sm"
+            title="Hapus semua data pesanan marketplace dan sync ulang"
+          >
+            <Trash2 size={18} />
+            Re-Sync
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="btn btn-success flex items-center gap-2"
+          >
+            <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
+            Sync Pesanan
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -371,6 +398,7 @@ export default function MarketplaceOrders() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Platform</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
@@ -379,7 +407,7 @@ export default function MarketplaceOrders() {
             <tbody className="bg-white divide-y divide-gray-200">
               {paginatedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-12 text-center">
+                  <td colSpan="8" className="px-4 py-12 text-center">
                     <ShoppingCart className="mx-auto text-gray-300 mb-4" size={48} />
                     <p className="text-gray-500">Tidak ada pesanan marketplace.</p>
                   </td>
@@ -399,7 +427,35 @@ export default function MarketplaceOrders() {
                       {getPlatformBadge(order.source)}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-900">{order.customer?.name || '-'}</p>
+                      <p className="text-sm text-gray-900">
+                        {typeof order.customer === 'string' ? order.customer : (order.customer?.name || order.buyerUsername || '-')}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm">
+                        {order.items && order.items.length > 0 ? (
+                          <div className="space-y-1">
+                            {order.items.slice(0, 2).map((item, idx) => (
+                              <div key={idx} className="text-gray-700">
+                                <span className="font-medium">{item.name || item.item_name || '-'}</span>
+                                <span className="text-gray-500 ml-1">
+                                  x{item.quantity || item.model_quantity_purchased || 1}
+                                </span>
+                                {(item.sku || item.item_sku || item.model_sku) && (
+                                  <span className="text-gray-400 text-xs ml-1">
+                                    ({item.sku || item.item_sku || item.model_sku})
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {order.items.length > 2 && (
+                              <span className="text-gray-400 text-xs">+{order.items.length - 2} produk lainnya</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className="font-medium">
@@ -416,7 +472,7 @@ export default function MarketplaceOrders() {
                     </td>
                   </tr>
                 ))
-              )}
+              )}}
             </tbody>
           </table>
         </div>

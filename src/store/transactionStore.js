@@ -179,6 +179,28 @@ export const useTransactionStore = create(
       
       getTransactionCount: () => {
         return get().transactions.filter((t) => t.status === 'completed').length
+      },
+      
+      // Update transaction (for marketplace sync)
+      updateTransaction: (id, updates) => {
+        set((state) => ({
+          transactions: state.transactions.map((t) =>
+            t.id === id ? { ...t, ...updates } : t
+          )
+        }))
+      },
+      
+      // Clear all marketplace transactions (for fresh re-sync)
+      clearMarketplaceTransactions: () => {
+        set((state) => ({
+          transactions: state.transactions.filter(t => 
+            t.source !== 'shopee' && 
+            t.source !== 'lazada' && 
+            t.source !== 'tokopedia' && 
+            t.source !== 'tiktok' &&
+            !t.marketplaceSource
+          )
+        }))
       }
     }),
     {
