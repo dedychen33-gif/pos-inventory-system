@@ -61,7 +61,13 @@ export default function MarketplaceOrders() {
         } else if (filterStatus === 'completed') {
           matchStatus = order.status === 'completed' || order.shopeeStatus === 'COMPLETED';
         } else if (filterStatus === 'cancelled') {
-          matchStatus = order.status === 'cancelled' || order.shopeeStatus === 'CANCELLED' || order.shopeeStatus === 'IN_CANCEL';
+          // Include both cancellation and return orders
+          matchStatus = order.status === 'cancelled' || 
+            order.status === 'return' ||
+            order.shopeeStatus === 'CANCELLED' || 
+            order.shopeeStatus === 'IN_CANCEL' ||
+            order.shopeeStatus === 'TO_RETURN' ||
+            order.shopeeStatus === 'RETURN';
         } else {
           matchStatus = order.status === filterStatus;
         }
@@ -90,7 +96,14 @@ export default function MarketplaceOrders() {
   const readyToShipCount = marketplaceOrders.filter(o => o.status === 'ready_to_ship' || o.status === 'processing' || o.shopeeStatus === 'READY_TO_SHIP' || o.shopeeStatus === 'PROCESSED').length;
   const shippedCount = marketplaceOrders.filter(o => o.status === 'shipped' || o.shopeeStatus === 'SHIPPED').length;
   const completedCount = marketplaceOrders.filter(o => o.status === 'completed' || o.shopeeStatus === 'COMPLETED').length;
-  const cancelledCount = marketplaceOrders.filter(o => o.status === 'cancelled' || o.shopeeStatus === 'CANCELLED' || o.shopeeStatus === 'IN_CANCEL').length;
+  const cancelledCount = marketplaceOrders.filter(o => 
+    o.status === 'cancelled' || 
+    o.status === 'return' ||
+    o.shopeeStatus === 'CANCELLED' || 
+    o.shopeeStatus === 'IN_CANCEL' ||
+    o.shopeeStatus === 'TO_RETURN' ||
+    o.shopeeStatus === 'RETURN'
+  ).length;
   const totalRevenue = marketplaceOrders.reduce((sum, o) => sum + (o.total || 0), 0);
 
   // Tab filter options matching Shopee Seller
@@ -100,7 +113,7 @@ export default function MarketplaceOrders() {
     { key: 'ready_to_ship', label: 'Perlu Dikirim', count: readyToShipCount },
     { key: 'shipped', label: 'Dikirim', count: shippedCount },
     { key: 'completed', label: 'Selesai', count: completedCount },
-    { key: 'cancelled', label: 'Pembatalan', count: cancelledCount },
+    { key: 'cancelled', label: 'Pengembalian/Pembatalan', count: cancelledCount },
   ];
 
   // Handle sync - using Vercel API
@@ -255,6 +268,7 @@ export default function MarketplaceOrders() {
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
       void: 'bg-gray-100 text-gray-800',
+      return: 'bg-pink-100 text-pink-800',
       // Shopee status (uppercase)
       UNPAID: 'bg-yellow-100 text-yellow-800',
       READY_TO_SHIP: 'bg-orange-100 text-orange-800',
@@ -263,6 +277,8 @@ export default function MarketplaceOrders() {
       COMPLETED: 'bg-green-100 text-green-800',
       CANCELLED: 'bg-red-100 text-red-800',
       IN_CANCEL: 'bg-red-100 text-red-800',
+      TO_RETURN: 'bg-pink-100 text-pink-800',
+      RETURN: 'bg-pink-100 text-pink-800',
     };
     const labels = {
       // Local status - matching Shopee Seller labels
@@ -273,6 +289,7 @@ export default function MarketplaceOrders() {
       completed: 'Pesanan Diterima',
       cancelled: 'Dibatalkan',
       void: 'Void',
+      return: 'Pengembalian',
       // Shopee status (uppercase) - matching Shopee Seller labels
       UNPAID: 'Belum Bayar',
       READY_TO_SHIP: 'Perlu Dikirim',
@@ -281,6 +298,8 @@ export default function MarketplaceOrders() {
       COMPLETED: 'Pesanan Diterima',
       CANCELLED: 'Dibatalkan',
       IN_CANCEL: 'Dalam Pembatalan',
+      TO_RETURN: 'Pengajuan Pengembalian',
+      RETURN: 'Pengembalian',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>
