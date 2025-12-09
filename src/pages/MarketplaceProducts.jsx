@@ -129,6 +129,11 @@ export default function MarketplaceProducts() {
           if (result.success && result.data && result.data.length > 0) {
             // Transform products from API response
             const productsToAdd = result.data.map(item => {
+              // Debug: log item structure to see models data
+              if (item.models && item.models.length > 0) {
+                console.log('Product with models:', item.item_name, item.models);
+              }
+              
               // Process variants/models if available
               const variants = item.models?.map(model => ({
                 modelId: model.model_id,
@@ -165,6 +170,10 @@ export default function MarketplaceProducts() {
                 updatedAt: new Date().toISOString()
               };
             });
+            
+            // Debug: count products with variants
+            const productsWithVariants = productsToAdd.filter(p => p.hasVariants);
+            console.log(`Products with variants: ${productsWithVariants.length} of ${productsToAdd.length}`);
 
             console.log(`Processing ${productsToAdd.length} products from ${store.shopName}...`);
             
