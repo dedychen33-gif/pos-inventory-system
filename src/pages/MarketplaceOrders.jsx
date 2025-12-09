@@ -78,10 +78,16 @@ export default function MarketplaceOrders() {
     currentPage * perPage
   );
 
-  // Stats
+  // Stats - Debug log for status checking
+  console.log('All marketplace orders status:', marketplaceOrders.map(o => ({ 
+    id: o.shopeeOrderId || o.id, 
+    status: o.status, 
+    shopeeStatus: o.shopeeStatus 
+  })).slice(0, 10));
+  
   const totalOrderCount = marketplaceOrders.length;
   const unpaidCount = marketplaceOrders.filter(o => o.status === 'pending' || o.shopeeStatus === 'UNPAID').length;
-  const readyToShipCount = marketplaceOrders.filter(o => o.status === 'ready_to_ship' || o.shopeeStatus === 'READY_TO_SHIP' || o.shopeeStatus === 'PROCESSED').length;
+  const readyToShipCount = marketplaceOrders.filter(o => o.status === 'ready_to_ship' || o.status === 'processing' || o.shopeeStatus === 'READY_TO_SHIP' || o.shopeeStatus === 'PROCESSED').length;
   const shippedCount = marketplaceOrders.filter(o => o.status === 'shipped' || o.shopeeStatus === 'SHIPPED').length;
   const completedCount = marketplaceOrders.filter(o => o.status === 'completed' || o.shopeeStatus === 'COMPLETED').length;
   const cancelledCount = marketplaceOrders.filter(o => o.status === 'cancelled' || o.shopeeStatus === 'CANCELLED' || o.shopeeStatus === 'IN_CANCEL').length;
@@ -236,8 +242,12 @@ export default function MarketplaceOrders() {
     }, 500);
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, shopeeStatus) => {
+    // Use shopeeStatus if available for more accurate display
+    const displayStatus = shopeeStatus || status;
+    
     const styles = {
+      // Local status
       pending: 'bg-yellow-100 text-yellow-800',
       ready_to_ship: 'bg-orange-100 text-orange-800',
       processing: 'bg-blue-100 text-blue-800',
@@ -245,19 +255,36 @@ export default function MarketplaceOrders() {
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
       void: 'bg-gray-100 text-gray-800',
+      // Shopee status (uppercase)
+      UNPAID: 'bg-yellow-100 text-yellow-800',
+      READY_TO_SHIP: 'bg-orange-100 text-orange-800',
+      PROCESSED: 'bg-blue-100 text-blue-800',
+      SHIPPED: 'bg-purple-100 text-purple-800',
+      COMPLETED: 'bg-green-100 text-green-800',
+      CANCELLED: 'bg-red-100 text-red-800',
+      IN_CANCEL: 'bg-red-100 text-red-800',
     };
     const labels = {
+      // Local status
       pending: 'Menunggu',
-      ready_to_ship: 'Siap Kirim',
+      ready_to_ship: 'Perlu Dikirim',
       processing: 'Diproses',
       shipped: 'Dikirim',
       completed: 'Selesai',
       cancelled: 'Dibatalkan',
       void: 'Void',
+      // Shopee status (uppercase)
+      UNPAID: 'Belum Bayar',
+      READY_TO_SHIP: 'Perlu Dikirim',
+      PROCESSED: 'Diproses',
+      SHIPPED: 'Dikirim',
+      COMPLETED: 'Selesai',
+      CANCELLED: 'Dibatalkan',
+      IN_CANCEL: 'Dibatalkan',
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-800'}`}>
-        {labels[status] || status}
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[displayStatus] || 'bg-gray-100 text-gray-800'}`}>
+        {labels[displayStatus] || displayStatus}
       </span>
     );
   };
@@ -524,7 +551,7 @@ export default function MarketplaceOrders() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {getStatusBadge(order.status)}
+                      {getStatusBadge(order.status, order.shopeeStatus)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
