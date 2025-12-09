@@ -14,6 +14,10 @@ export const useCartStore = create(
         const existingItem = get().cartItems.find((item) => item.id === product.id)
         
         if (existingItem) {
+          if (existingItem.quantity + quantity > existingItem.stock) {
+            alert('Stok tidak mencukupi!')
+            return
+          }
           set((state) => ({
             cartItems: state.cartItems.map((item) =>
               item.id === product.id
@@ -22,6 +26,10 @@ export const useCartStore = create(
             )
           }))
         } else {
+          if (quantity > product.stock) {
+            alert('Stok tidak mencukupi!')
+            return
+          }
           set((state) => ({
             cartItems: [...state.cartItems, { ...product, quantity }]
           }))
@@ -40,6 +48,12 @@ export const useCartStore = create(
           return
         }
         
+        const item = get().cartItems.find(i => i.id === productId)
+        if (item && quantity > item.stock) {
+          alert('Stok tidak mencukupi!')
+          return
+        }
+
         set((state) => ({
           cartItems: state.cartItems.map((item) =>
             item.id === productId ? { ...item, quantity } : item

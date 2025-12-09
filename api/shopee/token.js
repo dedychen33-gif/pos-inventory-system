@@ -46,9 +46,10 @@ export default async function handler(req, res) {
     const { action } = req.query;
     const body = req.body || {};
     
-    const partnerId = body.partner_id || process.env.SHOPEE_PARTNER_ID || '2014001';
-    const partnerKey = body.partner_key || process.env.SHOPEE_PARTNER_KEY || '';
-    const shopId = body.shop_id || process.env.SHOPEE_SHOP_ID || '';
+    // Trim whitespace to prevent API errors
+    const partnerId = String(body.partner_id || process.env.SHOPEE_PARTNER_ID || '2014001').trim();
+    const partnerKey = String(body.partner_key || process.env.SHOPEE_PARTNER_KEY || '').trim();
+    const shopId = String(body.shop_id || process.env.SHOPEE_SHOP_ID || '').trim();
 
     if (action === 'get_token') {
       // Exchange code for access token

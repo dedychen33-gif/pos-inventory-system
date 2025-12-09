@@ -40,10 +40,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const partnerId = req.query.partner_id || req.headers['x-partner-id'] || process.env.SHOPEE_PARTNER_ID;
-    const partnerKey = req.query.partner_key || req.headers['x-partner-key'] || process.env.SHOPEE_PARTNER_KEY;
-    const shopId = req.query.shop_id || req.headers['x-shop-id'] || process.env.SHOPEE_SHOP_ID;
-    const accessToken = req.query.access_token || req.headers['x-access-token'] || '';
+    // Trim whitespace to prevent API errors
+    const partnerId = String(req.query.partner_id || req.headers['x-partner-id'] || process.env.SHOPEE_PARTNER_ID || '').trim();
+    const partnerKey = String(req.query.partner_key || req.headers['x-partner-key'] || process.env.SHOPEE_PARTNER_KEY || '').trim();
+    const shopId = String(req.query.shop_id || req.headers['x-shop-id'] || process.env.SHOPEE_SHOP_ID || '').trim();
+    const accessToken = String(req.query.access_token || req.headers['x-access-token'] || '').trim();
     
     if (!partnerId || !partnerKey || !shopId || !accessToken) {
       return res.status(400).json({

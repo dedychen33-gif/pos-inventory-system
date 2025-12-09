@@ -13,6 +13,12 @@
       ]
     }
   ],
+  "crons": [
+    {
+      "path": "/api/shopee/auto-refresh",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "github": {
     "silent": true
   }

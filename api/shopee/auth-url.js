@@ -25,9 +25,18 @@ export default async function handler(req, res) {
     const isPost = req.method === 'POST';
     const data = isPost ? req.body : req.query;
     
-    const partnerId = data.partner_id || process.env.SHOPEE_PARTNER_ID || '2014001';
-    const partnerKey = data.partner_key || process.env.SHOPEE_PARTNER_KEY || '';
+    // Trim whitespace and convert to string to prevent issues
+    const partnerId = String(data.partner_id || process.env.SHOPEE_PARTNER_ID || '2014001').trim();
+    const partnerKey = String(data.partner_key || process.env.SHOPEE_PARTNER_KEY || '').trim();
     const redirectUrl = data.redirect_url || data.redirect || 'https://pos-inventory-system-gamma.vercel.app/marketplace/callback';
+    
+    // Validate partner_id is numeric
+    if (!/^\d+$/.test(partnerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Partner ID must be a valid number without spaces or special characters.'
+      });
+    }
     
     if (!partnerKey) {
       return res.status(400).json({

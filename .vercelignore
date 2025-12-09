@@ -1,0 +1,10 @@
+release/
+android/
+*.exe
+*.asar
+*.dll
+*.pak
+*.bin
+node_modules/
+.git/
+pos-upload.zip

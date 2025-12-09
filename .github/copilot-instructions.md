@@ -1,11 +1,29 @@
 # POS & Inventory System - AI Coding Instructions
 
 ## Project Overview
-React-based Point of Sale and inventory management system with Indonesian localization. This is a **frontend-only SPA** with client-side state persistence using Zustand + localStorage (no backend).
+React-based Point of Sale and inventory management system with Indonesian localization. Multi-platform: **Web (Vite)**, **Desktop (Electron)**, **Android (Capacitor)**. Hybrid data layer: localStorage (offline-first) + optional Supabase cloud sync.
 
-## Architecture & State Management
+## Architecture
 
-### Zustand Stores Pattern
+### Multi-Platform Deployment
+- **Web**: `npm run dev` / `npm run build` - Vite SPA, deploy to Vercel/Netlify
+- **Desktop**: `npm run electron:dev` / `npm run electron:pack` - Windows portable exe
+- **Android**: `npm run android:build` - Capacitor with ML Kit barcode scanning
+
+Platform detection via `src/utils/platform.js`:
+```javascript
+import { isAndroid, isWeb, isNative } from './utils/platform'
+// POS page hidden on Android (uses RemoteScanner instead)
+// Barcode scanner only works on Android native
+```
+
+### Data Layer (Dual Mode)
+1. **Offline-first**: Zustand stores + localStorage persistence (always works)
+2. **Cloud sync**: Optional Supabase realtime sync via `src/hooks/useRealtimeSync.js`
+
+Check Supabase status: `isSupabaseConfigured()` from `src/lib/supabase.js`. Configure via env vars `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Database schema in `supabase-full-schema.sql`.
+
+### Zustand Store Pattern
 All state management uses Zustand with persistence middleware. Pattern:
 ```javascript
 import { create } from 'zustand'

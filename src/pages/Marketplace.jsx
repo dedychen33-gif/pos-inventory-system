@@ -585,11 +585,12 @@ export default function Marketplace() {
   }, [shopeeConfig, localProducts, shopeeProducts, orders]);
 
   const handleConnect = () => { 
-    setLoading(true); 
-    setTimeout(() => { 
-      setIsConnected(true); 
-      setLoading(false); 
-    }, 500); 
+    // Check if shop has valid credentials and token
+    if (shopeeConfig.accessToken) {
+      setIsConnected(true);
+    } else {
+      alert('Silakan konfigurasi kredensial Shopee terlebih dahulu di Settings');
+    }
   };
 
   const getStatusBadge = (status) => {

@@ -18,7 +18,6 @@ import MarketplaceCallback from './pages/MarketplaceCallback'
 import MarketplaceIntegration from './pages/MarketplaceIntegration'
 import MarketplaceOrders from './pages/MarketplaceOrders'
 import MarketplaceProducts from './pages/MarketplaceProducts'
-import MarketplaceChat from './pages/MarketplaceChat'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -47,7 +46,6 @@ function App() {
                     <Route path="/marketplace/integration" element={<MarketplaceIntegration />} />
                     <Route path="/marketplace/orders" element={<MarketplaceOrders />} />
                     <Route path="/marketplace/products" element={<MarketplaceProducts />} />
-                    <Route path="/marketplace/chat" element={<MarketplaceChat />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/purchases" element={<Purchases />} />

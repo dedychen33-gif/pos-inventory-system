@@ -101,13 +101,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get shop_id first (required)
-    let shopId = req.query.shop_id || req.body?.shop_id;
+    // Get shop_id first (required) - trim whitespace
+    let shopId = String(req.query.shop_id || req.body?.shop_id || '').trim();
     
-    // Try to get credentials from Supabase first
-    let partnerId = req.query.partner_id || req.body?.partner_id;
-    let partnerKey = req.query.partner_key || req.body?.partner_key;
-    let refreshToken = req.query.refresh_token || req.body?.refresh_token;
+    // Try to get credentials from Supabase first - trim whitespace
+    let partnerId = String(req.query.partner_id || req.body?.partner_id || '').trim();
+    let partnerKey = String(req.query.partner_key || req.body?.partner_key || '').trim();
+    let refreshToken = String(req.query.refresh_token || req.body?.refresh_token || '').trim();
     
     // If shop_id provided but missing other params, try Supabase
     if (shopId && (!partnerId || !partnerKey || !refreshToken)) {

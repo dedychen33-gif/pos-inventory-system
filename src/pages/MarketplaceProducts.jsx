@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useProductStore } from '../store/productStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
+import { shopeeApi, lazadaApi } from '../services/marketplaceApi';
 
 // Component to render marketplace logo
 const MarketplaceLogo = ({ platform, size = 24 }) => {
@@ -26,8 +27,8 @@ export default function MarketplaceProducts() {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const { products, importShopeeProducts } = useProductStore();
-  const { stores } = useMarketplaceStore();
+  const { products, importShopeeProducts, addProduct } = useProductStore();
+  const { stores, updateStore } = useMarketplaceStore();
 
   // Filter marketplace products only (from Shopee, Lazada, Tokopedia, TikTok)
   const marketplaceProducts = useMemo(() => {
@@ -93,13 +94,92 @@ export default function MarketplaceProducts() {
   const importedCount = marketplaceProducts.filter(p => p.imported || p.isImported).length;
   const connectedStoresCount = stores.filter(s => s.isActive && s.isConnected).length;
 
-  // Handle sync
+  // Handle sync - fetch products from all connected stores
   const handleSync = async () => {
     setIsSyncing(true);
+    const connectedStores = stores.filter(s => s.isActive && s.isConnected);
+    
+    if (connectedStores.length === 0) {
+      alert('Tidak ada toko yang terhubung. Silakan hubungkan toko terlebih dahulu.');
+      setIsSyncing(false);
+      return;
+    }
+
+    let totalSynced = 0;
+    let errors = [];
+
     try {
-      // Trigger sync logic here
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate sync
-      alert('Sinkronisasi produk berhasil!');
+      for (const store of connectedStores) {
+        try {
+          console.log(`Syncing products from ${store.shopName} (${store.platform})...`);
+          
+          let result;
+          if (store.platform === 'shopee') {
+            result = await shopeeApi.syncProducts(store);
+          } else if (store.platform === 'lazada') {
+            result = await lazadaApi.syncProducts(store);
+          } else {
+            console.log(`Platform ${store.platform} not yet implemented for sync`);
+            continue;
+          }
+
+          if (result.success && result.data && result.data.length > 0) {
+            // Transform and add products to store
+            const productsToAdd = result.data.map(item => ({
+              id: Date.now() + Math.random(),
+              code: `MKT${item.item_id || item.id || Date.now()}`,
+              sku: item.item_sku || item.sku || '',
+              barcode: item.item_sku || '',
+              name: item.item_name || item.name || 'Unknown Product',
+              description: item.description || '',
+              category: 'Marketplace',
+              unit: 'pcs',
+              cost: 0,
+              price: item.price_info?.[0]?.current_price || item.price || 0,
+              stock: item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
+              minStock: 5,
+              image: item.image?.image_url_list?.[0] || item.image || '',
+              source: store.platform,
+              shopId: store.shopId,
+              shopName: store.shopName,
+              shopeeItemId: item.item_id,
+              marketplaceStoreId: store.id,
+              imported: false,
+              isActive: true,
+              createdAt: new Date().toISOString()
+            }));
+
+            // Add each product (skip duplicates based on shopeeItemId)
+            for (const product of productsToAdd) {
+              const exists = products.find(p => 
+                (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) ||
+                (p.sku && product.sku && p.sku === product.sku)
+              );
+              if (!exists) {
+                addProduct(product);
+                totalSynced++;
+              }
+            }
+
+            // Update store last sync time
+            updateStore(store.id, { 
+              lastSync: new Date().toISOString(),
+              productCount: result.count || result.data.length
+            });
+          }
+        } catch (storeError) {
+          console.error(`Error syncing ${store.shopName}:`, storeError);
+          errors.push(`${store.shopName}: ${storeError.message}`);
+        }
+      }
+
+      if (totalSynced > 0) {
+        alert(`Sinkronisasi berhasil! ${totalSynced} produk baru ditambahkan.`);
+      } else if (errors.length > 0) {
+        alert(`Sinkronisasi selesai dengan error:\n${errors.join('\n')}`);
+      } else {
+        alert('Sinkronisasi selesai. Tidak ada produk baru.');
+      }
     } catch (error) {
       alert('Gagal sinkronisasi: ' + error.message);
     } finally {

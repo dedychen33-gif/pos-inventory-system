@@ -47,10 +47,8 @@ export const shopeeApi = {
   getAuthUrl: async (store) => {
     try {
       const api = createApiInstance('shopee');
-      // Use production URL for redirect
-      const baseUrl = isProduction 
-        ? 'https://pos-inventory-system-gamma.vercel.app'
-        : window.location.origin;
+      // Use Vercel URL for redirect (consistent with Shopee Open Platform setting)
+      const baseUrl = 'https://pos-inventory-system-gamma.vercel.app';
       const redirectUrl = `${baseUrl}/marketplace/callback?platform=shopee&store_id=${store.id}`;
       
       // Use correct endpoint path based on environment

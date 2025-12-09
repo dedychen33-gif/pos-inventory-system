@@ -274,13 +274,6 @@ export default function MarketplaceIntegration() {
             Lihat Pesanan
           </button>
           <button
-            onClick={() => navigate('/marketplace/chat')}
-            className="btn btn-outline inline-flex items-center gap-2"
-          >
-            <MessageCircle size={18} />
-            Chat
-          </button>
-          <button
             onClick={handleSyncAll}
             className="btn btn-outline inline-flex items-center gap-2"
             disabled={stores.filter(s => s.isActive && s.platform !== 'manual').length === 0}

@@ -24,17 +24,6 @@ export const useSettingsStore = create(
       whatsappNumber: '',
       whatsappMessage: 'Halo, saya ingin bertanya tentang produk di toko Anda.',
 
-      // Chat Notification Settings
-      chatNotification: {
-        enabled: true,
-        soundEnabled: true,
-        soundId: 'notification', // Default sound
-        customSoundUrl: null,    // Custom sound URL or base64
-        volume: 0.7,             // 0-1
-        browserNotification: true,
-        autoRefreshInterval: 30, // seconds
-      },
-
       updateStoreInfo: (info) => {
         set((state) => ({
           storeInfo: { ...state.storeInfo, ...info }
@@ -60,13 +49,6 @@ export const useSettingsStore = create(
           whatsappNumber: number,
           whatsappMessage: message || get().whatsappMessage
         })
-      },
-
-      // Update Chat Notification settings
-      updateChatNotification: (settings) => {
-        set((state) => ({
-          chatNotification: { ...state.chatNotification, ...settings }
-        }))
       },
 
       // Calculate marketplace stock with buffer
