@@ -88,16 +88,27 @@ export default function MarketplaceOrders() {
       
       for (const store of shopeeStores) {
         try {
-          console.log('Syncing store:', store.shopName, 'Shop ID:', store.shopId);
+          // Get credentials from store object
+          const partnerId = store.credentials?.partnerId || store.partnerId;
+          const partnerKey = store.credentials?.partnerKey || store.partnerKey;
+          const accessToken = store.credentials?.accessToken || store.accessToken;
+          const shopId = store.shopId;
+          
+          console.log('Syncing store:', store.shopName, 'Shop ID:', shopId, 'Has credentials:', !!partnerId, !!partnerKey, !!accessToken);
+          
+          if (!partnerId || !partnerKey || !accessToken) {
+            console.warn(`Missing credentials for ${store.shopName}. Please reconnect the store.`);
+            continue;
+          }
           
           // Call Supabase Edge Function for orders
           const { data, error } = await supabase.functions.invoke('shopee-api', {
             body: {
               action: 'getOrders',
-              shopId: store.shopId?.toString(),
-              accessToken: store.accessToken,
-              partnerId: store.partnerId?.toString(),
-              partnerKey: store.partnerKey
+              shopId: shopId?.toString(),
+              accessToken: accessToken,
+              partnerId: partnerId?.toString(),
+              partnerKey: partnerKey
             }
           });
           
