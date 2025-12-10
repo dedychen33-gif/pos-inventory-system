@@ -175,7 +175,7 @@ export const useProductStore = create(
             success: true, 
             count: successCount, 
             failed: failCount,
-            message: `Berhasil sync ${successCount} produk ke cloud` 
+            message: `Sync Selesai. Berhasil: ${successCount}, Gagal: ${failCount} produk` 
           }
 
         } catch (error) {
