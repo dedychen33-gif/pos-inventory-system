@@ -105,7 +105,7 @@ export const shopeeApi = {
   // Sync products from Shopee
   syncProducts: async (store) => {
     try {
-      const api = createApiInstance('shopee');
+      const api = createApiInstance('shopee', 180000); // 3 min timeout for large catalogs
       // Use GET with query params for Vercel API
       // Don't skip models - we need variants data for dropdown display
       const result = await api.get('/products', {
@@ -335,7 +335,7 @@ export const lazadaApi = {
   // Sync products via Vercel API
   syncProducts: async (store) => {
     try {
-      const api = createApiInstance('lazada');
+      const api = createApiInstance('lazada', 180000); // 3 min timeout for large catalogs
       const result = await api.get('/products', {
         params: {
           app_key: store.credentials?.appKey,
