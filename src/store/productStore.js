@@ -131,28 +131,29 @@ export const useProductStore = create(
         set({ isSyncing: true })
         let successCount = 0
         let failCount = 0
+        let lastError = null
 
         try {
           // Process in batches of 50 to avoid payload limits
           const batchSize = 50
           for (let i = 0; i < localProducts.length; i += batchSize) {
             const batch = localProducts.slice(i, i + batchSize).map(p => ({
-              id: p.id,
-              code: p.code,
-              sku: p.sku,
-              barcode: p.barcode,
-              name: p.name,
-              description: p.description,
-              category: p.category,
-              unit: p.unit,
-              price: p.price || 0,
-              cost: p.cost || 0,
-              stock: p.stock || 0,
-              min_stock: p.minStock || 0,
-              max_stock: p.maxStock || 0,
-              image_url: p.image,
-              parent_id: p.parentId,
-              variant_name: p.variantName,
+              id: String(p.id), // Ensure ID is string
+              code: p.code || '',
+              sku: p.sku || '',
+              barcode: p.barcode || '',
+              name: p.name || '',
+              description: p.description || '',
+              category: p.category || '',
+              unit: p.unit || 'pcs',
+              price: Number(p.price) || 0,
+              cost: Number(p.cost) || 0,
+              stock: Number(p.stock) || 0,
+              min_stock: Number(p.minStock) || 0,
+              max_stock: Number(p.maxStock) || 0,
+              image_url: p.image || '',
+              parent_id: p.parentId ? String(p.parentId) : null,
+              variant_name: p.variantName || '',
               source: p.source || 'manual',
               is_active: true,
               updated_at: new Date().toISOString()
@@ -164,6 +165,7 @@ export const useProductStore = create(
 
             if (error) {
               console.error('Error syncing batch:', error)
+              lastError = error.message || JSON.stringify(error)
               failCount += batch.length
             } else {
               successCount += batch.length
@@ -171,11 +173,17 @@ export const useProductStore = create(
           }
           
           set({ isSyncing: false })
+          
+          let message = `Sync Selesai. Berhasil: ${successCount}, Gagal: ${failCount} produk`
+          if (failCount > 0 && lastError) {
+            message += `\nError Terakhir: ${lastError}`
+          }
+          
           return { 
             success: true, 
             count: successCount, 
             failed: failCount,
-            message: `Sync Selesai. Berhasil: ${successCount}, Gagal: ${failCount} produk` 
+            message: message
           }
 
         } catch (error) {
