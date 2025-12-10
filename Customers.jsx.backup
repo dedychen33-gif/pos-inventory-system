@@ -1,0 +1,494 @@
+import { useState } from 'react'
+import { Plus, Edit, Trash2, Search, Star, Gift, DollarSign } from 'lucide-react'
+import { useCustomerStore } from '../store/customerStore'
+import { useProductStore } from '../store/productStore'
+
+export default function Customers() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterType, setFilterType] = useState('all')
+  const [showModal, setShowModal] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState(null)
+  const [showPriceModal, setShowPriceModal] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  
+  // Fungsi untuk capitalize setiap kata
+  const capitalizeWords = (str) => {
+    return str.replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+  
+  const { customers, addCustomer, updateCustomer, deleteCustomer } = useCustomerStore()
+
+  const filteredCustomers = customers.filter((c) => {
+    const matchSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone.includes(searchTerm)
+    const matchType = filterType === 'all' || c.type === filterType
+    return matchSearch && matchType
+  })
+
+  const handleSubmit = (formData) => {
+    if (editingCustomer) {
+      updateCustomer(editingCustomer.id, formData)
+    } else {
+      addCustomer(formData)
+    }
+    setShowModal(false)
+    setEditingCustomer(null)
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Manajemen Pelanggan</h1>
+          <p className="text-gray-600 mt-1">Kelola data pelanggan dan program loyalty</p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingCustomer(null)
+            setShowModal(true)
+          }}
+          className="btn btn-primary flex items-center gap-2"
+        >
+          <Plus size={20} />
+          Tambah Pelanggan
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Pelanggan</p>
+          <p className="text-2xl font-bold mt-1">{customers.length}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Member</p>
+          <p className="text-2xl font-bold mt-1">
+            {customers.filter((c) => c.type === 'member').length}
+          </p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">VIP</p>
+          <p className="text-2xl font-bold mt-1 text-yellow-600">
+            {customers.filter((c) => c.type === 'vip').length}
+          </p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Points</p>
+          <p className="text-2xl font-bold mt-1 text-primary">
+            {customers.reduce((sum, c) => sum + c.points, 0).toLocaleString('id-ID')}
+          </p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="card">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Cari pelanggan..."
+              className="w-full pl-10 input"
+            />
+          </div>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="input w-48"
+          >
+            <option value="all">Semua Tipe</option>
+            <option value="walk-in">Walk-in</option>
+            <option value="member">Member</option>
+            <option value="vip">VIP</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Customers Table */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontak</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Points</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Belanja</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredCustomers.map((customer) => (
+                <tr key={customer.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      {customer.type === 'vip' && <Star className="text-yellow-500" size={16} />}
+                      <span className="font-medium">{customer.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm">{customer.phone}</p>
+                    <p className="text-xs text-gray-600">{customer.email}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`badge ${
+                      customer.type === 'vip' ? 'badge-warning' :
+                      customer.type === 'member' ? 'badge-info' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {customer.type.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1">
+                      <Gift size={16} className="text-primary" />
+                      <span className="font-semibold">{customer.points}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 font-semibold">
+                    Rp {customer.totalSpent.toLocaleString('id-ID')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    {(customer.type === 'member' || customer.type === 'vip') && (
+                      <button
+                        onClick={() => {
+                          setSelectedCustomer(customer)
+                          setShowPriceModal(true)
+                        }}
+                        className="text-green-600 hover:text-green-700 mr-3"
+                        title="Atur Harga Khusus"
+                      >
+                        <DollarSign size={18} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setEditingCustomer(customer)
+                        setShowModal(true)
+                      }}
+                      className="text-primary hover:text-blue-700 mr-3"
+                    >
+                      <Edit size={18} />
+                    </button>
+                    {customer.type !== 'walk-in' && (
+                      <button
+                        onClick={() => {
+                          if (confirm('Hapus pelanggan ini?')) {
+                            deleteCustomer(customer.id)
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <CustomerModal
+          customer={editingCustomer}
+          onClose={() => {
+            setShowModal(false)
+            setEditingCustomer(null)
+          }}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {/* Custom Price Modal */}
+      {showPriceModal && selectedCustomer && (
+        <CustomPriceModal
+          customer={selectedCustomer}
+          onClose={() => {
+            setShowPriceModal(false)
+            setSelectedCustomer(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function CustomerModal({ customer, onClose, onSubmit }) {
+  // Inisialisasi form data dengan nilai default
+  const [formData, setFormData] = useState({
+    name: customer?.name || '',
+    phone: customer?.phone || '',
+    email: customer?.email || '',
+    type: customer?.type || 'member'
+  });
+
+  // Fungsi untuk capitalize setiap kata
+  const capitalizeWords = (str) => {
+    if (!str) return '';
+    return str.replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  // Handle perubahan input
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle submit form
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Apply capitalize to name before submit
+    const processedData = {
+      ...formData,
+      name: capitalizeWords(formData.name.trim())
+    };
+    onSubmit(processedData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h3 className="text-xl font-bold">
+            {customer ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <Plus size={24} className="rotate-45" />
+          </button>
+        </div>
+        
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Nama Lengkap *</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="input w-full"
+              placeholder="Contoh: Budi Santoso"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">No. Telepon / WhatsApp *</label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              className="input w-full"
+              placeholder="Contoh: 081234567890"
+              inputMode="tel"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Email</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="input w-full"
+              placeholder="email@contoh.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Tipe Pelanggan *</label>
+            <select
+              name="type"
+              value={formData.type}
+              onChange={handleChange}
+              className="input w-full"
+              required
+            >
+              <option value="member">Member</option>
+              <option value="vip">VIP</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button type="submit" className="flex-1 btn btn-primary">
+              {customer ? 'Update' : 'Simpan'}
+            </button>
+            <button type="button" onClick={onClose} className="flex-1 btn btn-secondary">
+              Batal
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function CustomPriceModal({ customer, onClose }) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [customPrices, setCustomPrices] = useState(customer.customPrices || {})
+  const { products } = useProductStore()
+  const { setCustomPrice, removeCustomPrice } = useCustomerStore()
+
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const handlePriceChange = (productId, value) => {
+    const price = parseFloat(value)
+    if (value === '' || isNaN(price)) {
+      const newPrices = { ...customPrices }
+      delete newPrices[productId]
+      setCustomPrices(newPrices)
+    } else {
+      setCustomPrices({ ...customPrices, [productId]: price })
+    }
+  }
+
+  const handleSave = () => {
+    // Save all custom prices
+    Object.entries(customPrices).forEach(([productId, price]) => {
+      setCustomPrice(customer.id, parseInt(productId), price)
+    })
+
+    // Remove prices that were cleared
+    Object.keys(customer.customPrices || {}).forEach((productId) => {
+      if (!customPrices[productId]) {
+        removeCustomPrice(customer.id, parseInt(productId))
+      }
+    })
+
+    onClose()
+  }
+
+  const getMinPrice = (product) => {
+    return product.costPrice * 1.15
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-7xl w-full h-[95vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b">
+          <div>
+            <h3 className="text-xl font-bold">Atur Harga Khusus - {customer.name}</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Kosongkan harga untuk menggunakan harga default produk
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <Plus size={24} className="rotate-45" />
+          </button>
+        </div>
+        
+        <div className="p-6 flex-1 overflow-hidden flex flex-col">
+          {/* Search */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Cari produk..."
+                className="w-full pl-10 input"
+              />
+            </div>
+          </div>
+
+          {/* Products Table */}
+          <div className="flex-1 overflow-y-auto border rounded-lg">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b sticky top-0">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Produk</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Modal</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Default</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Min. Harga (15%)</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Harga Khusus</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredProducts.map((product) => {
+                  const customPrice = customPrices[product.id]
+                  const minPrice = getMinPrice(product)
+                  const hasCustomPrice = customPrice !== undefined
+                  const isValid = !customPrice || customPrice >= minPrice
+
+                  return (
+                    <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-mono">{product.sku}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
+                      <td className="px-4 py-3 text-sm">{product.category}</td>
+                      <td className="px-4 py-3 text-sm text-right">
+                        Rp {product.costPrice.toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-semibold">
+                        Rp {product.price.toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-orange-600 font-semibold">
+                        Rp {minPrice.toLocaleString('id-ID')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <input
+                            type="number"
+                            value={customPrice || ''}
+                            onChange={(e) => handlePriceChange(product.id, e.target.value)}
+                            placeholder="Default"
+                            className={`input-sm w-32 text-right ${
+                              !isValid ? 'border-red-500 bg-red-50' : 
+                              hasCustomPrice ? 'border-green-500 bg-green-50' : ''
+                            }`}
+                            min={0}
+                            step={100}
+                          />
+                          {!isValid && (
+                            <span className="text-xs text-red-600">Terlalu rendah!</span>
+                          )}
+                          {hasCustomPrice && isValid && (
+                            <span className="text-xs text-green-600">✓ Aktif</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary */}
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-900">
+              <strong>{Object.keys(customPrices).length}</strong> produk dengan harga khusus
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4">
+            <button onClick={handleSave} className="flex-1 btn btn-primary">
+              Simpan Harga Khusus
+            </button>
+            <button onClick={onClose} className="flex-1 btn btn-secondary">
+              Batal
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
