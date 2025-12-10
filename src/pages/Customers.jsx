@@ -228,9 +228,27 @@ function CustomerModal({ customer, onClose, onSubmit }) {
     type: 'member'
   })
 
+  const capitalizeWords = (str) => {
+    if (!str) return ''
+    return str.replace(/\b\w/g, (char) => char.toUpperCase())
+  }
+
+  const handleChange = (e) => {
+    e.persist && e.persist()
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSubmit(formData)
+    const processedData = {
+      ...formData,
+      name: capitalizeWords(formData.name.trim())
+    }
+    onSubmit(processedData)
   }
 
   return (
@@ -250,22 +268,29 @@ function CustomerModal({ customer, onClose, onSubmit }) {
             <label className="block text-sm font-medium mb-2">Nama Lengkap *</label>
             <input
               type="text"
+              name="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: capitalizeWords(e.target.value) })}
-              className="input"
-              placeholder="Nama Lengkap Pelanggan"
+              onChange={handleChange}
+              onInput={handleChange}
+              className="input w-full"
+              placeholder="Contoh: Budi Santoso"
+              autoComplete="off"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Nama Lengkap *</label>
+            <label className="block text-sm font-medium mb-2">No. Telepon / WhatsApp *</label>
             <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: capitalizeWords(e.target.value) })}
-              className="input"
-              placeholder="Nama Lengkap Pelanggan"
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              onInput={handleChange}
+              className="input w-full"
+              placeholder="Contoh: 081234567890"
+              inputMode="tel"
+              autoComplete="off"
               required
             />
           </div>
@@ -274,18 +299,23 @@ function CustomerModal({ customer, onClose, onSubmit }) {
             <label className="block text-sm font-medium mb-2">Email</label>
             <input
               type="email"
+              name="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="input"
+              onChange={handleChange}
+              onInput={handleChange}
+              className="input w-full"
+              placeholder="email@contoh.com"
+              autoComplete="off"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-2">Tipe Pelanggan *</label>
             <select
+              name="type"
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="input"
+              onChange={handleChange}
+              className="input w-full"
               required
             >
               <option value="member">Member</option>
