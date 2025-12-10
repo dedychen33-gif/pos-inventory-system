@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight, Download, FileSpreadsheet } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight, Download, FileSpreadsheet, Cloud } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
@@ -77,8 +77,20 @@ export default function Products() {
   const [importData, setImportData] = useState([])
   const [isImporting, setIsImporting] = useState(false)
   
-  const { products, categories, addProduct, updateProduct, deleteProduct } = useProductStore()
+  const { products, categories, addProduct, updateProduct, deleteProduct, syncLocalToCloud, isSyncing } = useProductStore()
   const { user } = useAuthStore()
+
+  // Handle sync to cloud
+  const handleSyncToCloud = async () => {
+    if (confirm('Upload semua data produk lokal ke Cloud (Supabase)? Data di cloud dengan ID sama akan di-update.')) {
+      const result = await syncLocalToCloud()
+      if (result.success) {
+        alert(result.message)
+      } else {
+        alert('Gagal sync: ' + result.error)
+      }
+    }
+  }
 
   // Download CSV template for bulk import
   const handleDownloadTemplate = () => {
@@ -419,6 +431,17 @@ export default function Products() {
           <p className="text-gray-600 mt-1">Database produk lokal & Marketplace (tersimpan di perangkat)</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Sync Cloud Button */}
+          <button
+            onClick={handleSyncToCloud}
+            disabled={isSyncing}
+            className="btn btn-outline flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+            title="Upload data lokal ke Cloud"
+          >
+            <Cloud size={18} className={isSyncing ? 'animate-bounce' : ''} />
+            <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
+
           {/* Import/Export Buttons */}
           <div className="flex gap-1">
             <button

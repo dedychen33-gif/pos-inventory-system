@@ -116,6 +116,75 @@ export const useProductStore = create(
         }
       },
       
+      // Sync all local products to Supabase (One-way: Local -> Cloud)
+      syncLocalToCloud: async () => {
+        if (!isSupabaseConfigured()) {
+          console.error('Supabase not configured')
+          return { success: false, error: 'Supabase belum dikonfigurasi' }
+        }
+
+        const localProducts = get().products
+        if (localProducts.length === 0) {
+          return { success: true, count: 0, message: 'Tidak ada produk lokal' }
+        }
+
+        set({ isSyncing: true })
+        let successCount = 0
+        let failCount = 0
+
+        try {
+          // Process in batches of 50 to avoid payload limits
+          const batchSize = 50
+          for (let i = 0; i < localProducts.length; i += batchSize) {
+            const batch = localProducts.slice(i, i + batchSize).map(p => ({
+              id: p.id,
+              code: p.code,
+              sku: p.sku,
+              barcode: p.barcode,
+              name: p.name,
+              description: p.description,
+              category: p.category,
+              unit: p.unit,
+              price: p.price || 0,
+              cost: p.cost || 0,
+              stock: p.stock || 0,
+              min_stock: p.minStock || 0,
+              max_stock: p.maxStock || 0,
+              image_url: p.image,
+              parent_id: p.parentId,
+              variant_name: p.variantName,
+              source: p.source || 'manual',
+              is_active: true,
+              updated_at: new Date().toISOString()
+            }))
+
+            const { error } = await supabase
+              .from('products')
+              .upsert(batch, { onConflict: 'id' })
+
+            if (error) {
+              console.error('Error syncing batch:', error)
+              failCount += batch.length
+            } else {
+              successCount += batch.length
+            }
+          }
+          
+          set({ isSyncing: false })
+          return { 
+            success: true, 
+            count: successCount, 
+            failed: failCount,
+            message: `Berhasil sync ${successCount} produk ke cloud` 
+          }
+
+        } catch (error) {
+          set({ isSyncing: false })
+          console.error('Sync error:', error)
+          return { success: false, error: error.message }
+        }
+      },
+
       addProduct: async (product, userId = null, userName = null) => {
         const newProduct = {
           ...product,
