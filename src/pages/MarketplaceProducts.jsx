@@ -262,56 +262,83 @@ export default function MarketplaceProducts() {
               }
             });
 
-            // Add or update each product - use getState() to get fresh products list
+            // BigSeller-style: Sync to Supabase first (central hub), then update localStorage (cache)
+            console.log('🔄 BigSeller-style sync: Marketplace → Supabase → localStorage');
+            
+            // Import Supabase
+            const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
+            const { transformProductToDB } = await import('../services/supabaseSync');
+            
             for (const product of productsToAdd) {
-              // Get current products from store (fresh state)
-              const currentProducts = useProductStore.getState().products;
-              
-              // Match by SKU only (simple and consistent)
-              const existingProduct = currentProducts.find(p => {
-                // SKU must be valid (not empty, not just dash)
-                const validSku = product.sku && product.sku.trim() !== '' && product.sku.trim() !== '-';
-                if (!validSku) return false;
+              try {
+                // 1. Save to Supabase first (central hub)
+                if (isSupabaseConfigured()) {
+                  const productData = transformProductToDB(product);
+                  
+                  // Check if product exists in Supabase by SKU
+                  const { data: existing } = await supabase
+                    .from('products')
+                    .select('id')
+                    .eq('sku', product.sku)
+                    .eq('source', store.platform)
+                    .maybeSingle();
+                  
+                  if (existing) {
+                    // Update existing product in Supabase
+                    const { error } = await supabase
+                      .from('products')
+                      .update({
+                        ...productData,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existing.id);
+                    
+                    if (!error) {
+                      totalUpdated++;
+                      console.log(`✅ Updated in Supabase: ${product.name}`);
+                    } else {
+                      console.error(`❌ Supabase update error:`, error);
+                    }
+                  } else {
+                    // Insert new product to Supabase
+                    const { error } = await supabase
+                      .from('products')
+                      .insert(productData);
+                    
+                    if (!error) {
+                      totalSynced++;
+                      console.log(`✅ Added to Supabase: ${product.name}`);
+                    } else {
+                      console.error(`❌ Supabase insert error:`, error);
+                    }
+                  }
+                }
                 
-                // Match by SKU from same platform
-                return p.source === store.platform && p.sku === product.sku;
-              });
-              
-              if (existingProduct) {
-                // Check if there are actual changes (price or stock different)
-                const priceChanged = Math.abs(existingProduct.price - product.price) > 0.01;
-                const stockChanged = existingProduct.stock !== product.stock;
-                const hasChanges = priceChanged || stockChanged;
+                // 2. Update localStorage (cache) - regardless of Supabase status
+                const currentProducts = useProductStore.getState().products;
+                const existingProduct = currentProducts.find(p => 
+                  p.source === store.platform && p.sku === product.sku
+                );
                 
-                if (hasChanges) {
-                  // Only update if there are actual changes
+                if (existingProduct) {
+                  // Update cache
                   updateProduct(existingProduct.id, {
                     name: product.name,
-                    category: product.category, // Update category from marketplace
+                    category: product.category,
                     price: product.price,
                     stock: product.stock,
-                    image: product.image || existingProduct.image, // Update image from marketplace
+                    image: product.image || existingProduct.image,
                     variants: product.variants || existingProduct.variants,
                     updatedAt: product.updatedAt
                   });
-                  totalUpdated++;
-                  
-                  console.log(`Updated product: ${product.name} (Price: ${existingProduct.price} → ${product.price}, Stock: ${existingProduct.stock} → ${product.stock})`);
                 } else {
-                  // Skip - no changes detected
-                  skippedProducts.push({
-                    name: product.name,
-                    sku: product.sku,
-                    reason: 'no_changes',
-                    matchedBy: 'sku',
-                    existingId: existingProduct.id
-                  });
-                  totalSkipped++;
+                  // Add to cache
+                  addProduct(product);
                 }
-              } else {
-                // New product - add it
-                addProduct(product);
-                totalSynced++;
+                
+              } catch (error) {
+                console.error(`Error syncing product ${product.name}:`, error);
+                // Continue with next product even if one fails
               }
             }
 
