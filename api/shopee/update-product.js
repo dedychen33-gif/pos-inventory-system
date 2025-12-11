@@ -276,54 +276,45 @@ export default async function handler(req, res) {
     }
 
     const results = {
-      name: null,
       price: null,
-      stock: null,
-      sku: null
+      stock: null
     };
 
-    // Update Name
-    if (action === 'update_name' || action === 'update_all') {
-      if (name !== undefined && name !== null && name !== '') {
-        results.name = await updateItemName(partner_id, partner_key, shop_id, access_token, item_id, name);
-      }
-    }
-
+    // Only update Price and Stock (most reliable operations)
+    // Skip Name and SKU updates as they have strict validation rules
+    
     // Update Price
-    if (action === 'update_price' || action === 'update_all') {
-      if (price !== undefined && price !== null) {
+    if (price !== undefined && price !== null) {
+      try {
         if (model_id) {
           results.price = await updateModelPrice(partner_id, partner_key, shop_id, access_token, item_id, model_id, price);
         } else {
           results.price = await updateItemPrice(partner_id, partner_key, shop_id, access_token, item_id, price);
         }
+        console.log('✅ Price update result:', results.price);
+      } catch (error) {
+        console.error('❌ Price update error:', error);
+        results.price = { error: error.message };
       }
     }
 
     // Update Stock
-    if (action === 'update_stock' || action === 'update_all') {
-      if (stock !== undefined && stock !== null) {
+    if (stock !== undefined && stock !== null) {
+      try {
         if (model_id) {
           results.stock = await updateModelStock(partner_id, partner_key, shop_id, access_token, item_id, model_id, stock);
         } else {
           results.stock = await updateItemStock(partner_id, partner_key, shop_id, access_token, item_id, stock);
         }
+        console.log('✅ Stock update result:', results.stock);
+      } catch (error) {
+        console.error('❌ Stock update error:', error);
+        results.stock = { error: error.message };
       }
     }
 
-    // Update SKU
-    if (action === 'update_sku' || action === 'update_all') {
-      if (sku !== undefined && sku !== null && sku !== '') {
-        results.sku = await updateItemSku(partner_id, partner_key, shop_id, access_token, item_id, model_id, sku);
-      }
-    }
-
-    // Check for errors and log detailed responses
+    // Check for errors
     const errors = [];
-    if (results.name?.error) {
-      console.error('Name update error:', results.name);
-      errors.push(`Name: ${results.name.message || results.name.error}`);
-    }
     if (results.price?.error) {
       console.error('Price update error:', results.price);
       errors.push(`Price: ${results.price.message || results.price.error}`);
@@ -332,10 +323,6 @@ export default async function handler(req, res) {
       console.error('Stock update error:', results.stock);
       errors.push(`Stock: ${results.stock.message || results.stock.error}`);
     }
-    if (results.sku?.error) {
-      console.error('SKU update error:', results.sku);
-      errors.push(`SKU: ${results.sku.message || results.sku.error}`);
-    }
 
     if (errors.length > 0) {
       console.error('Update failed with errors:', { errors, results });
@@ -343,12 +330,7 @@ export default async function handler(req, res) {
         success: false,
         error: errors.join(', '),
         results,
-        details: {
-          name: results.name,
-          price: results.price,
-          stock: results.stock,
-          sku: results.sku
-        }
+        details: results
       });
     }
 
