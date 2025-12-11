@@ -1271,7 +1271,25 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
           setSyncMessage({ type: 'success', text: successMsg })
           alert(`${successMsg}\n\n✅ Nama: ${formData.name}\n✅ Harga: Rp ${calculatedPrice.toLocaleString('id-ID')}\n✅ Stok: ${calculatedStock}\n✅ SKU: ${formData.sku}`)
         } else {
-          const errorMsg = result.error || 'Unknown error'
+          // Log full error details for debugging
+          console.error('❌ Full error response:', JSON.stringify(result, null, 2))
+          
+          // Extract detailed error message
+          let errorMsg = result.error || 'Unknown error'
+          
+          // If there are detailed error results, show them
+          if (result.details) {
+            const detailErrors = []
+            if (result.details.name?.error) detailErrors.push(`Name: ${result.details.name.message || result.details.name.error}`)
+            if (result.details.price?.error) detailErrors.push(`Price: ${result.details.price.message || result.details.price.error}`)
+            if (result.details.stock?.error) detailErrors.push(`Stock: ${result.details.stock.message || result.details.stock.error}`)
+            if (result.details.sku?.error) detailErrors.push(`SKU: ${result.details.sku.message || result.details.sku.error}`)
+            
+            if (detailErrors.length > 0) {
+              errorMsg = detailErrors.join('\n')
+            }
+          }
+          
           setSyncMessage({ type: 'error', text: `❌ Gagal update: ${errorMsg}` })
           alert(`❌ Gagal Update ke ${platformName}\n\n${errorMsg}\n\nData lokal tetap tersimpan.`)
         }

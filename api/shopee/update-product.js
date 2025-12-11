@@ -309,18 +309,37 @@ export default async function handler(req, res) {
       }
     }
 
-    // Check for errors
+    // Check for errors and log detailed responses
     const errors = [];
-    if (results.name?.error) errors.push(`Name: ${results.name.message}`);
-    if (results.price?.error) errors.push(`Price: ${results.price.message}`);
-    if (results.stock?.error) errors.push(`Stock: ${results.stock.message}`);
-    if (results.sku?.error) errors.push(`SKU: ${results.sku.message}`);
+    if (results.name?.error) {
+      console.error('Name update error:', results.name);
+      errors.push(`Name: ${results.name.message || results.name.error}`);
+    }
+    if (results.price?.error) {
+      console.error('Price update error:', results.price);
+      errors.push(`Price: ${results.price.message || results.price.error}`);
+    }
+    if (results.stock?.error) {
+      console.error('Stock update error:', results.stock);
+      errors.push(`Stock: ${results.stock.message || results.stock.error}`);
+    }
+    if (results.sku?.error) {
+      console.error('SKU update error:', results.sku);
+      errors.push(`SKU: ${results.sku.message || results.sku.error}`);
+    }
 
     if (errors.length > 0) {
+      console.error('Update failed with errors:', { errors, results });
       return res.status(400).json({
         success: false,
         error: errors.join(', '),
-        results
+        results,
+        details: {
+          name: results.name,
+          price: results.price,
+          stock: results.stock,
+          sku: results.sku
+        }
       });
     }
 
