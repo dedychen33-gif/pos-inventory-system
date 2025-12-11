@@ -271,6 +271,7 @@ export const shopeeApi = {
         access_token: store.credentials?.accessToken,
         item_id: itemId,
         model_id: modelId || null,
+        action: 'update_all', // Tell API to update all fields
         ...updates
       };
 
