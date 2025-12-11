@@ -562,21 +562,24 @@ export default function Products() {
               {displayProducts.map((product) => (
                 <>
                   {/* Main Product Row */}
-                  <tr key={product.id} className={`hover:bg-gray-50 ${product.isGrouped ? 'cursor-pointer' : ''}`}>
+                  <tr key={product.id} className={`hover:bg-gray-50 ${product.isGrouped ? 'bg-blue-50/30' : ''}`}>
                     <td className="px-2 py-2">
                       <div className="flex items-center gap-1">
                         {/* Expand/Collapse button for grouped products */}
-                        {product.isGrouped && (
+                        {product.isGrouped ? (
                           <button
                             onClick={() => toggleExpand(product.id)}
-                            className="text-gray-500 hover:text-gray-700"
+                            className="p-1 hover:bg-blue-100 rounded transition-colors"
+                            title={expandedProducts[product.id] ? 'Tutup varian' : 'Lihat varian'}
                           >
                             {expandedProducts[product.id] ? (
-                              <ChevronDown size={16} />
+                              <ChevronDown size={18} className="text-blue-600" />
                             ) : (
-                              <ChevronRight size={16} />
+                              <ChevronRight size={18} className="text-blue-600" />
                             )}
                           </button>
+                        ) : (
+                          <div className="w-6"></div>
                         )}
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                           {product.image ? (
@@ -737,37 +740,40 @@ export default function Products() {
                   </tr>
                   
                   {/* Variant Rows (shown when expanded) */}
-                  {product.isGrouped && expandedProducts[product.id] && product.variants.map((variant) => (
-                    <tr key={variant.id} className="bg-gray-50/50 hover:bg-gray-100">
-                      <td className="px-2 py-2 pl-8">
-                        <div className="w-8 h-8 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                          {variant.image ? (
-                            <img 
-                              src={variant.image} 
-                              alt={variant.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.nextSibling.style.display = 'flex';
-                              }}
-                            />
-                          ) : null}
-                          <div className={`w-full h-full items-center justify-center text-gray-400 ${variant.image ? 'hidden' : 'flex'}`}>
-                            <ImageIcon size={12} />
+                  {product.isGrouped && expandedProducts[product.id] && product.variants.map((variant, idx) => (
+                    <tr key={variant.id} className="bg-blue-50/50 hover:bg-blue-100/70 border-l-4 border-blue-300">
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1 pl-7">
+                          <div className="w-8 h-8 rounded overflow-hidden bg-white border-2 border-blue-200 flex items-center justify-center">
+                            {variant.image ? (
+                              <img 
+                                src={variant.image} 
+                                alt={variant.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-full h-full items-center justify-center text-gray-400 ${variant.image ? 'hidden' : 'flex'}`}>
+                              <ImageIcon size={12} />
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-500 truncate max-w-[96px]" title={variant.sku}>
-                        {variant.sku || '-'}
+                      <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-600 truncate max-w-[96px]" title={variant.sku}>
+                        <span className="bg-white px-1.5 py-0.5 rounded border border-blue-200">{variant.sku || '-'}</span>
                       </td>
                       <td className="px-2 py-2">
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-400 text-xs">└</span>
-                          <p className="text-xs text-gray-700">{variant.variantName || variant.name}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-400 text-sm font-bold">↳</span>
+                          <p className="text-sm font-medium text-gray-800">{variant.variantName || variant.name}</p>
+                          <span className="text-xs text-gray-500 bg-white px-1.5 py-0.5 rounded border border-blue-200">Varian {idx + 1}</span>
                           {/* Edit button - inline with variant name */}
                           <button
                             onClick={() => handleEdit(variant)}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-white hover:bg-blue-50 rounded border border-blue-200"
                             title="Edit Varian"
                           >
                             <Edit size={10} />
