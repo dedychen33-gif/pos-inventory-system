@@ -77,6 +77,8 @@ export default function Products() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [importData, setImportData] = useState([])
   const [isImporting, setIsImporting] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(20)
   
   const { products, categories, addProduct, updateProduct, deleteProduct, syncLocalToCloud, isSyncing } = useProductStore()
   const { user } = useAuthStore()
@@ -292,7 +294,7 @@ export default function Products() {
   }, {})
 
   // Convert to array and calculate totals for grouped products
-  const displayProducts = Object.entries(groupedProducts).map(([key, group]) => {
+  const allDisplayProducts = Object.entries(groupedProducts).map(([key, group]) => {
     const hasVariants = group.variants.length > 0
     
     if (hasVariants) {
@@ -317,6 +319,19 @@ export default function Products() {
       variants: []
     }
   })
+
+  // Pagination logic
+  const totalProducts = allDisplayProducts.length
+  const totalPages = Math.ceil(totalProducts / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const displayProducts = allDisplayProducts.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter) => (value) => {
+    setter(value)
+    setCurrentPage(1)
+  }
 
   // Toggle expand/collapse for variant group
   const toggleExpand = (productId) => {
@@ -525,19 +540,22 @@ export default function Products() {
       {/* Filters */}
       <div className="card">
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
+              }}
               placeholder="Cari produk (SKU, nama, barcode)..."
               className="w-full pl-10 input"
             />
           </div>
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => handleFilterChange(setSelectedCategory)(e.target.value)}
             className="input w-full md:w-48"
           >
             <option value="all">Semua Kategori</option>
@@ -547,7 +565,7 @@ export default function Products() {
           </select>
           <select
             value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
+            onChange={(e) => handleFilterChange(setSelectedSource)(e.target.value)}
             className="input w-full md:w-52"
           >
             <option value="all">Semua ({products.length})</option>
@@ -866,6 +884,91 @@ export default function Products() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 bg-white border-t border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-700">
+                Menampilkan <span className="font-medium">{startIndex + 1}</span> - <span className="font-medium">{Math.min(endIndex, totalProducts)}</span> dari <span className="font-medium">{totalProducts}</span> produk
+              </div>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="input py-1 px-2 text-sm"
+              >
+                <option value={10}>10 per halaman</option>
+                <option value={20}>20 per halaman</option>
+                <option value={50}>50 per halaman</option>
+                <option value={100}>100 per halaman</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Pertama
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ← Prev
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-sm border rounded ${
+                        currentPage === pageNum
+                          ? 'bg-primary text-white border-primary'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next →
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Terakhir
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
