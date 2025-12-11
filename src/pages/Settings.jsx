@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, FileText, Clock, Filter } from 'lucide-react'
+import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, FileText, Clock, Filter, MessageCircle, Sync } from 'lucide-react'
 import { useAuthStore, PERMISSION_LABELS } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useProductStore } from '../store/productStore'
@@ -10,12 +10,17 @@ import { useCartStore } from '../store/cartStore'
 import { useAuditStore, AUDIT_ACTIONS } from '../store/auditStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getSyncStatus, syncLocalToSupabase } from '../services/supabaseSync'
+import { toggleAutoSync, runAutoSync, getAutoSyncStatus } from '../services/autoSyncService'
 
 export default function Settings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [userModalMode, setUserModalMode] = useState('add') // 'add' or 'edit'
   const [selectedUser, setSelectedUser] = useState(null)
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false)
+  const [isAutoSyncing, setIsAutoSyncing] = useState(false)
+  const [autoSyncStatus, setAutoSyncStatus] = useState(null)
+  
   const { users, user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin } = useAuthStore()
   const { storeInfo, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore()
   const { products } = useProductStore()
@@ -26,6 +31,44 @@ export default function Settings() {
   const [formData, setFormData] = useState(storeInfo)
   const [stockFormData, setStockFormData] = useState(stockSettings || { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 })
   const [waFormData, setWaFormData] = useState({ number: whatsappNumber || '', message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' })
+
+  // Load auto-sync settings on mount
+  useEffect(() => {
+    const status = getAutoSyncStatus()
+    setAutoSyncEnabled(status.isEnabled)
+    setAutoSyncStatus(status)
+  }, [])
+
+  // Handle auto-sync toggle
+  const handleAutoSyncToggle = (enabled) => {
+    setAutoSyncEnabled(enabled)
+    toggleAutoSync(enabled)
+    setAutoSyncStatus(getAutoSyncStatus())
+    
+    if (enabled) {
+      alert('✅ Auto Sync diaktifkan! Sinkronisasi akan berjalan otomatis saat login dan setiap 1 jam.')
+    } else {
+      alert('⏹️ Auto Sync dinonaktifkan.')
+    }
+  }
+
+  // Handle manual auto-sync
+  const handleManualSync = async () => {
+    setIsAutoSyncing(true)
+    try {
+      const result = await runAutoSync()
+      if (result.success) {
+        alert('✅ Sinkronisasi manual berhasil!')
+        setAutoSyncStatus(getAutoSyncStatus())
+      } else {
+        alert('❌ Sinkronisasi gagal: ' + (result.error || 'Unknown error'))
+      }
+    } catch (error) {
+      alert('❌ Sinkronisasi gagal: ' + error.message)
+    } finally {
+      setIsAutoSyncing(false)
+    }
+  }
 
   const handleBackupDatabase = () => {
     const backupData = {
@@ -395,6 +438,126 @@ export default function Settings() {
             >
               Simpan Pengaturan WhatsApp
             </button>
+          </div>
+        </div>
+
+        {/* Auto Sync Marketplace */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Sync className="text-blue-500" size={24} />
+            <h3 className="text-lg font-bold">Auto Sync Marketplace</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <Info size={14} className="inline mr-1" />
+                Sinkronisasi otomatis produk dan pesanan dari marketplace (Shopee, Lazada) ke sistem lokal dan cloud.
+              </p>
+            </div>
+            
+            {/* Status Info */}
+            {autoSyncStatus && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${autoSyncStatus.isEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                    <span>Status: {autoSyncStatus.isEnabled ? 'Aktif' : 'Nonaktif'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} className="text-gray-500" />
+                    <span>
+                      {autoSyncStatus.lastSyncTime 
+                        ? `Last: ${new Date(autoSyncStatus.lastSyncTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Belum pernah sync'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {autoSyncStatus.isRunning ? (
+                      <>
+                        <RefreshCw size={14} className="text-blue-500 animate-spin" />
+                        <span>Sedang berjalan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} className="text-green-500" />
+                        <span>Siap</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Toggle Auto Sync */}
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={autoSyncEnabled}
+                  onChange={(e) => handleAutoSyncToggle(e.target.checked)}
+                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  disabled={isAutoSyncing}
+                />
+                <div className="flex-1">
+                  <span className="font-medium">Aktifkan Auto Sync</span>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Sync otomatis saat login dan setiap 1 jam. Sinkronisasi produk, pesanan, dan backup cloud.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Manual Sync Button */}
+            <div className="flex gap-2">
+              <button 
+                onClick={handleManualSync}
+                disabled={isAutoSyncing || !autoSyncEnabled}
+                className="btn btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isAutoSyncing ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Menyinkronkan...
+                  </>
+                ) : (
+                  <>
+                    <Sync size={16} />
+                    Sync Sekarang
+                  </>
+                )}
+              </button>
+              
+              {!autoSyncEnabled && (
+                <span className="text-sm text-gray-500 self-center">
+                  Aktifkan Auto Sync terlebih dahulu
+                </span>
+              )}
+            </div>
+
+            {/* Connected Marketplaces */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-2">Marketplace Terhubung:</p>
+              <div className="flex flex-wrap gap-2">
+                {localStorage.getItem('shopee_access_token') && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-orange-100 text-orange-700 rounded">
+                    <ShoppingBag size={12} />
+                    Shopee
+                  </span>
+                )}
+                {localStorage.getItem('lazada_access_token') && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">
+                    <ShoppingBag size={12} />
+                    Lazada
+                  </span>
+                )}
+                {!localStorage.getItem('shopee_access_token') && !localStorage.getItem('lazada_access_token') && (
+                  <span className="text-xs text-gray-500 italic">
+                    Belum ada marketplace yang terhubung. Hubungkan marketplace di menu Integration.
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

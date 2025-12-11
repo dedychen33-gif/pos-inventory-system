@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
 import { RealtimeSyncProvider } from './hooks/useRealtimeSync'
+import { initializeAutoSync } from './services/autoSyncService'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -21,6 +23,14 @@ import MarketplaceProducts from './pages/MarketplaceProducts'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
+
+  // Initialize auto-sync when app starts and user is authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('🚀 App started - initializing auto-sync...')
+      initializeAutoSync()
+    }
+  }, [isAuthenticated])
 
   return (
     <Router>
