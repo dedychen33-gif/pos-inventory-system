@@ -25,6 +25,7 @@ export default function Settings() {
   const { storeInfo, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore()
   const { products } = useProductStore()
   const { customers } = useCustomerStore()
+  const { transactions } = useTransactionStore()
   const { purchases, suppliers } = usePurchaseStore()
   const { cartItems } = useCartStore()
   const { logs, clearOldLogs, exportLogs } = useAuditStore()
