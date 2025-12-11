@@ -297,7 +297,12 @@ export default function MarketplaceProducts() {
                       totalUpdated++;
                       console.log(`✅ Updated in Supabase: ${product.name}`);
                     } else {
-                      console.error(`❌ Supabase update error:`, error);
+                      console.error(`❌ Supabase update error for ${product.name}:`, {
+                        message: error.message,
+                        details: error.details,
+                        hint: error.hint,
+                        code: error.code
+                      });
                     }
                   } else {
                     // Insert new product to Supabase
@@ -309,7 +314,13 @@ export default function MarketplaceProducts() {
                       totalSynced++;
                       console.log(`✅ Added to Supabase: ${product.name}`);
                     } else {
-                      console.error(`❌ Supabase insert error:`, error);
+                      console.error(`❌ Supabase insert error for ${product.name}:`, {
+                        message: error.message,
+                        details: error.details,
+                        hint: error.hint,
+                        code: error.code,
+                        productData: productData
+                      });
                     }
                   }
                 }

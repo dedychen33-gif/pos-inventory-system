@@ -43,33 +43,49 @@ export const transformProductFromDB = (p) => ({
 
 // Transform local product to Supabase format
 export const transformProductToDB = (p) => {
+  // Build base product object with only valid fields
   const dbProduct = {
-    code: p.code,
-    sku: p.sku,
-    barcode: p.barcode,
-    name: p.name,
-    description: p.description,
+    code: p.code || `PRD${Date.now()}`,
+    sku: p.sku || '',
+    barcode: p.barcode || '',
+    name: p.name || 'Unnamed Product',
+    description: p.description || '',
     // Use category as string for marketplace products
     category: typeof p.category === 'string' ? p.category : null,
     unit: typeof p.unit === 'string' ? p.unit : 'pcs',
-    cost: p.cost || 0,
-    price: p.price || 0,
-    stock: p.stock || 0,
-    min_stock: p.minStock || 0,
-    max_stock: p.maxStock || 0,
-    image_url: p.image,
+    cost: parseFloat(p.cost) || 0,
+    price: parseFloat(p.price) || 0,
+    stock: parseInt(p.stock) || 0,
+    min_stock: parseInt(p.minStock) || 0,
+    max_stock: parseInt(p.maxStock) || 0,
+    image_url: p.image || null,
     source: p.source || 'local',
-    is_active: p.isActive !== false,
-    has_variants: p.hasVariants || false,
-    variants: p.variants || []
+    is_active: p.isActive !== false
   };
 
-  // Only include fields that exist in Supabase schema
-  // Marketplace IDs are stored in the product object itself, not as separate columns
+  // Only include variant fields if they exist
+  if (p.hasVariants !== undefined) {
+    dbProduct.has_variants = Boolean(p.hasVariants);
+  }
   
-  // Include variant fields if they exist in schema
-  if (p.parentId) dbProduct.parent_id = p.parentId;
-  if (p.variantName) dbProduct.variant_name = p.variantName;
+  if (p.isVariant !== undefined) {
+    dbProduct.is_variant = Boolean(p.isVariant);
+  }
+  
+  if (p.parentId) {
+    dbProduct.parent_id = p.parentId;
+  }
+  
+  if (p.variantName) {
+    dbProduct.variant_name = p.variantName;
+  }
+
+  // Remove null/undefined values to prevent schema errors
+  Object.keys(dbProduct).forEach(key => {
+    if (dbProduct[key] === undefined) {
+      delete dbProduct[key];
+    }
+  });
 
   return dbProduct;
 };
