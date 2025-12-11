@@ -230,32 +230,14 @@ export default function MarketplaceProducts() {
               // Get current products from store (fresh state)
               const currentProducts = useProductStore.getState().products;
               
-              // Match by marketplace-specific ID (primary) or by SKU (secondary)
+              // Match by SKU only (simple and consistent)
               const existingProduct = currentProducts.find(p => {
-                // Only check products from same platform
-                if (p.source !== store.platform) return false;
-                
-                // Primary match: marketplace-specific ID
-                if (store.platform === 'shopee' && p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) {
-                  return true;
-                }
-                if (store.platform === 'lazada' && p.lazadaItemId && p.lazadaItemId === product.lazadaItemId) {
-                  return true;
-                }
-                if (store.platform === 'tokopedia' && p.tokopediaProductId && p.tokopediaProductId === product.tokopediaProductId) {
-                  return true;
-                }
-                if (store.platform === 'tiktok' && p.tiktokProductId && p.tiktokProductId === product.tiktokProductId) {
-                  return true;
-                }
-                
-                // Secondary match: same platform, same SKU (but SKU must be meaningful, not empty or dash)
+                // SKU must be valid (not empty, not just dash)
                 const validSku = product.sku && product.sku.trim() !== '' && product.sku.trim() !== '-';
-                if (validSku && p.sku === product.sku) {
-                  return true;
-                }
+                if (!validSku) return false;
                 
-                return false;
+                // Match by SKU from same platform
+                return p.source === store.platform && p.sku === product.sku;
               });
               
               if (existingProduct) {
@@ -279,18 +261,11 @@ export default function MarketplaceProducts() {
                   console.log(`Updated product: ${product.name} (Price: ${existingProduct.price} → ${product.price}, Stock: ${existingProduct.stock} → ${product.stock})`);
                 } else {
                   // Skip - no changes detected
-                  let matchedBy = 'sku';
-                  if (store.platform === 'shopee' && existingProduct.shopeeItemId === product.shopeeItemId) matchedBy = 'shopeeItemId';
-                  if (store.platform === 'lazada' && existingProduct.lazadaItemId === product.lazadaItemId) matchedBy = 'lazadaItemId';
-                  if (store.platform === 'tokopedia' && existingProduct.tokopediaProductId === product.tokopediaProductId) matchedBy = 'tokopediaProductId';
-                  if (store.platform === 'tiktok' && existingProduct.tiktokProductId === product.tiktokProductId) matchedBy = 'tiktokProductId';
-                  
                   skippedProducts.push({
                     name: product.name,
-                    marketplaceId: product.shopeeItemId || product.lazadaItemId || product.tokopediaProductId || product.tiktokProductId,
                     sku: product.sku,
                     reason: 'no_changes',
-                    matchedBy: matchedBy,
+                    matchedBy: 'sku',
                     existingId: existingProduct.id
                   });
                   totalSkipped++;
