@@ -130,118 +130,124 @@ export default function MarketplaceProducts() {
 
           if (result.success && result.data && result.data.length > 0) {
             // Transform products from API response
-            const productsToAdd = result.data.map(item => {
-              // Debug: log item structure to see models data
-              if (item.models && item.models.length > 0) {
-                console.log('Product with models:', item.item_name, item.models);
-              }
+            // For products with variants, expand each variant as separate product
+            const productsToAdd = [];
+            
+            for (const item of result.data) {
+              // Check if product has variants
+              const hasVariants = item.models && item.models.length > 0;
               
-              // Process variants/models if available
-              const variants = item.models?.map(model => {
-                // Debug: log full model structure to find price field
-                if (model.price_info) {
-                  console.log('Model price_info detail:', model.model_name, JSON.stringify(model.price_info));
+              if (hasVariants) {
+                // Expand each variant as separate product
+                for (const model of item.models) {
+                  const priceInfo = Array.isArray(model.price_info) ? model.price_info[0] : model.price_info;
+                  
+                  const variantPrice = 
+                    model.current_price || 
+                    priceInfo?.current_price ||
+                    priceInfo?.original_price ||
+                    model.original_price ||
+                    model.price ||
+                    0;
+                  
+                  const variantStock = 
+                    model.stock ||
+                    model.current_stock ||
+                    model.stock_info_v2?.seller_stock?.[0]?.stock ||
+                    model.stock_info_v2?.summary_info?.total_available_stock ||
+                    model.stock_info?.current_stock ||
+                    0;
+                  
+                  const variantImage = 
+                    model.image?.image_url || 
+                    model.image?.url ||
+                    model.image_url || 
+                    model.images?.[0]?.url ||
+                    model.images?.[0] ||
+                    item.image?.image_url_list?.[0] || 
+                    item.image?.url_list?.[0] ||
+                    '';
+                  
+                  const categoryName = item.category_name || 
+                                       item.category?.name || 
+                                       item.categories?.[0]?.name ||
+                                       item.category_path || 
+                                       'Marketplace';
+                  
+                  // Create product for this variant with proper model_id
+                  productsToAdd.push({
+                    id: Date.now() + Math.random(),
+                    code: `MKT${item.item_id}_${model.model_id}`,
+                    sku: model.model_sku || item.item_sku || '',
+                    barcode: model.model_sku || '',
+                    name: `${item.item_name} - ${model.model_name || ''}`.trim(),
+                    description: item.description || '',
+                    category: categoryName,
+                    unit: 'pcs',
+                    cost: 0,
+                    price: variantPrice,
+                    stock: variantStock,
+                    minStock: 5,
+                    image: variantImage,
+                    source: store.platform,
+                    shopId: store.shopId,
+                    shopName: store.shopName,
+                    shopeeItemId: item.item_id,
+                    shopeeModelId: model.model_id, // IMPORTANT: Save variant's model_id
+                    marketplaceStoreId: store.id,
+                    hasVariants: false, // Each variant is now separate product
+                    variants: [],
+                    imported: false,
+                    isActive: true,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
                 }
+              } else {
+                // Product without variants - single product
+                const categoryName = item.category_name || 
+                                     item.category?.name || 
+                                     item.categories?.[0]?.name ||
+                                     item.category_path || 
+                                     'Marketplace';
                 
-                // price_info is an array in Shopee API, get first element
-                const priceInfo = Array.isArray(model.price_info) ? model.price_info[0] : model.price_info;
+                const productImage = item.image?.image_url_list?.[0] || 
+                                     item.image?.url_list?.[0] ||
+                                     item.images?.[0]?.url ||
+                                     item.images?.[0] ||
+                                     item.image_url ||
+                                     item.image ||
+                                     '';
                 
-                // Try multiple price field locations from Shopee API
-                const variantPrice = 
-                  model.current_price || 
-                  priceInfo?.current_price ||
-                  priceInfo?.original_price ||
-                  model.original_price ||
-                  model.price ||
-                  0;
-                
-                // Try multiple stock field locations
-                const variantStock = 
-                  model.stock ||
-                  model.current_stock ||
-                  model.stock_info_v2?.seller_stock?.[0]?.stock ||
-                  model.stock_info_v2?.summary_info?.total_available_stock ||
-                  model.stock_info?.current_stock ||
-                  0;
-                
-                // Get variant image from multiple sources
-                const variantImage = 
-                  model.image?.image_url || 
-                  model.image?.url ||
-                  model.image_url || 
-                  model.images?.[0]?.url ||
-                  model.images?.[0] ||
-                  item.image?.image_url_list?.[0] || 
-                  item.image?.url_list?.[0] ||
-                  '';
-                
-                return {
-                  modelId: model.model_id,
-                  name: model.model_name || model.name || '',
-                  sku: model.model_sku || '',
-                  price: variantPrice,
-                  stock: variantStock,
-                  image: variantImage
-                };
-              }) || [];
-
-              // Prepare marketplace-specific IDs
-              const marketplaceIds = {};
-              if (store.platform === 'shopee') {
-                marketplaceIds.shopeeItemId = item.item_id;
-                marketplaceIds.shopeeModelId = item.model_id;
-              } else if (store.platform === 'lazada') {
-                marketplaceIds.lazadaItemId = item.item_id || item.ItemId;
-                marketplaceIds.lazadaSkuId = item.sku_id || item.SkuId;
-              } else if (store.platform === 'tokopedia') {
-                marketplaceIds.tokopediaProductId = item.product_id || item.id;
-              } else if (store.platform === 'tiktok') {
-                marketplaceIds.tiktokProductId = item.product_id || item.id;
+                productsToAdd.push({
+                  id: Date.now() + Math.random(),
+                  code: `MKT${item.item_id || item.id || Date.now()}`,
+                  sku: item.item_sku || item.model_sku || item.sku || '',
+                  barcode: item.item_sku || '',
+                  name: item.item_name || item.name || 'Unknown Product',
+                  description: item.description || '',
+                  category: categoryName,
+                  unit: 'pcs',
+                  cost: 0,
+                  price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
+                  stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
+                  minStock: 5,
+                  image: productImage,
+                  source: store.platform,
+                  shopId: store.shopId,
+                  shopName: store.shopName,
+                  shopeeItemId: item.item_id,
+                  shopeeModelId: null, // No model_id for non-variant products
+                  marketplaceStoreId: store.id,
+                  hasVariants: false,
+                  variants: [],
+                  imported: false,
+                  isActive: true,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                });
               }
-
-              // Get category from marketplace
-              const categoryName = item.category_name || 
-                                   item.category?.name || 
-                                   item.categories?.[0]?.name ||
-                                   item.category_path || 
-                                   'Marketplace';
-              
-              // Get image from marketplace - try multiple sources
-              const productImage = item.image?.image_url_list?.[0] || 
-                                   item.image?.url_list?.[0] ||
-                                   item.images?.[0]?.url ||
-                                   item.images?.[0] ||
-                                   item.image_url ||
-                                   item.image ||
-                                   '';
-
-              return {
-                id: Date.now() + Math.random(),
-                code: `MKT${item.item_id || item.id || Date.now()}`,
-                sku: item.item_sku || item.model_sku || item.sku || '',
-                barcode: item.item_sku || '',
-                name: item.item_name || item.name || 'Unknown Product',
-                description: item.description || '',
-                category: categoryName,
-                unit: 'pcs',
-                cost: 0,
-                price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
-                stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
-                minStock: 5,
-                image: productImage,
-                source: store.platform,
-                shopId: store.shopId,
-                shopName: store.shopName,
-                ...marketplaceIds,
-                marketplaceStoreId: store.id,
-                hasVariants: variants.length > 1,
-                variants: variants,
-                imported: false,
-                isActive: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              };
-            });
+            }
             
             // Debug: count products with variants
             const productsWithVariants = productsToAdd.filter(p => p.hasVariants);
