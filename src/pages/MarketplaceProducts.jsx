@@ -335,13 +335,19 @@ export default function MarketplaceProducts() {
                       totalSynced++;
                       console.log(`✅ Added to Supabase: ${product.name}`);
                     } else {
-                      console.error(`❌ Supabase insert error for ${product.name}:`, {
-                        message: error.message,
-                        details: error.details,
-                        hint: error.hint,
-                        code: error.code,
-                        productData: productData
-                      });
+                      // If it's a duplicate key error (23505), skip it silently
+                      if (error.code === '23505') {
+                        console.warn(`⚠️ Skipping duplicate product: ${product.name} (ID: ${productData.id})`);
+                        totalSkipped++;
+                      } else {
+                        console.error(`❌ Supabase insert error for ${product.name}:`, {
+                          message: error.message,
+                          details: error.details,
+                          hint: error.hint,
+                          code: error.code,
+                          productData: productData
+                        });
+                      }
                     }
                   }
                 }
