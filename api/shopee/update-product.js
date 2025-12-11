@@ -259,6 +259,15 @@ export default async function handler(req, res) {
       action // 'update_price', 'update_stock', 'update_sku', 'update_name', 'update_all'
     } = req.body;
     
+    console.log('📦 Shopee Update Request:', {
+      partner_id,
+      shop_id,
+      item_id,
+      model_id,
+      action,
+      updates: { name, price, stock, sku }
+    });
+    
     if (!partner_id || !partner_key || !shop_id || !access_token || !item_id) {
       return res.status(400).json({
         success: false,
