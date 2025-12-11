@@ -64,18 +64,11 @@ export const transformProductToDB = (p) => {
     variants: p.variants || []
   };
 
-  // Include all marketplace IDs
-  if (p.shopeeItemId) dbProduct.shopee_item_id = p.shopeeItemId;
-  if (p.shopeeModelId) dbProduct.shopee_model_id = p.shopeeModelId;
-  if (p.lazadaItemId) dbProduct.lazada_item_id = p.lazadaItemId;
-  if (p.lazadaSkuId) dbProduct.lazada_sku_id = p.lazadaSkuId;
-  if (p.tokopediaProductId) dbProduct.tokopedia_product_id = p.tokopediaProductId;
-  if (p.tiktokProductId) dbProduct.tiktok_product_id = p.tiktokProductId;
-  if (p.marketplaceStoreId) dbProduct.marketplace_store_id = p.marketplaceStoreId;
+  // Only include fields that exist in Supabase schema
+  // Marketplace IDs are stored in the product object itself, not as separate columns
   
-  // Include variant fields
-  if (p.isVariant) dbProduct.is_variant = p.isVariant;
-  if (p.parentId) dbProduct.parent_product_id = p.parentId;
+  // Include variant fields if they exist in schema
+  if (p.parentId) dbProduct.parent_id = p.parentId;
   if (p.variantName) dbProduct.variant_name = p.variantName;
 
   return dbProduct;
