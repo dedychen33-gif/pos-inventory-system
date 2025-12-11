@@ -95,6 +95,22 @@ export default function MarketplaceCallback() {
             tokenExpiry: tokenData.expire_in ? new Date(Date.now() + tokenData.expire_in * 1000).toISOString() : null
           });
 
+          // IMPORTANT: Save credentials to localStorage for persistence
+          if (platform === 'shopee') {
+            localStorage.setItem('shopee_partner_id', store.credentials?.partnerId || '2014001');
+            localStorage.setItem('shopee_partner_key', store.credentials?.partnerKey || '');
+            localStorage.setItem('shopee_shop_id', tokenData.shop_id || shopId || store.shopId || '669903315');
+            localStorage.setItem('shopee_access_token', tokenData.access_token);
+            localStorage.setItem('shopee_refresh_token', tokenData.refresh_token || '');
+            
+            console.log('✅ Shopee credentials saved to localStorage:', {
+              partner_id: store.credentials?.partnerId || '2014001',
+              shop_id: tokenData.shop_id || shopId || store.shopId,
+              has_access_token: !!tokenData.access_token,
+              has_refresh_token: !!tokenData.refresh_token
+            });
+          }
+
           setTokenData({
             ...tokenData,
             platform,
