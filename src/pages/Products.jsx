@@ -1129,7 +1129,7 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
       })
       
       try {
-        // Get marketplace store credentials from localStorage
+        // Get marketplace store credentials
         let store = null
         
         // Try to get from marketplace_stores array (new format)
@@ -1137,63 +1137,31 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         console.log('🔍 Checking marketplace_stores array:', storeData)
         store = storeData.find(s => s.platform === product.source && s.isActive)
         
-        // Fallback: Try to get from individual localStorage keys (old format for Shopee)
+        // Fallback: Try to get from auth store (marketplaceCredentials)
         if (!store && product.source === 'shopee') {
-          console.log('🔍 Trying to read Shopee from individual localStorage keys...')
+          console.log('🔍 Trying to read Shopee from auth store...')
           
-          // Search all localStorage keys that contain 'shopee'
-          const allKeys = Object.keys(localStorage)
-          const shopeeKeys = allKeys.filter(k => k.toLowerCase().includes('shopee'))
-          console.log('🔍 Found Shopee-related keys:', shopeeKeys)
+          const { user, getMyMarketplaceCredentials } = useAuthStore.getState()
+          const shopeeCredentials = getMyMarketplaceCredentials('shopee')
           
-          // Find credentials by searching for keys containing specific patterns
-          let partnerId = null
-          let partnerKey = null
-          let shopId = null
-          let accessToken = null
+          console.log('🔑 Auth store user:', user?.name, 'ID:', user?.id)
+          console.log('🔑 Shopee credentials from auth store:', shopeeCredentials)
           
-          for (const key of shopeeKeys) {
-            const value = localStorage.getItem(key)
-            if (key.includes('partner_id') && value && value !== '2014001') {
-              partnerId = value
-              console.log('✅ Found partnerId in key:', key)
-            }
-            if (key.includes('partner_key') && value) {
-              partnerKey = value
-              console.log('✅ Found partnerKey in key:', key)
-            }
-            if (key.includes('shop_id') && value) {
-              shopId = value
-              console.log('✅ Found shopId in key:', key)
-            }
-            if (key.includes('access_token') && value) {
-              accessToken = value
-              console.log('✅ Found accessToken in key:', key)
-            }
-          }
-          
-          console.log('🔑 Shopee credentials found:', {
-            partnerId: partnerId ? '✅ Found' : '❌ Not found',
-            partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
-            shopId: shopId ? '✅ Found' : '❌ Not found',
-            accessToken: accessToken ? '✅ Found' : '❌ Not found'
-          })
-          
-          if (partnerId && partnerKey && shopId && accessToken) {
+          if (shopeeCredentials && shopeeCredentials.partnerId && shopeeCredentials.shopId && shopeeCredentials.accessToken) {
             store = {
               platform: 'shopee',
-              shopId: shopId,
-              shopName: 'Shopee Store',
+              shopId: shopeeCredentials.shopId,
+              shopName: user?.name || 'Shopee Store',
               isActive: true,
               credentials: {
-                partnerId: partnerId,
-                partnerKey: partnerKey,
-                accessToken: accessToken
+                partnerId: shopeeCredentials.partnerId,
+                partnerKey: shopeeCredentials.partnerKey,
+                accessToken: shopeeCredentials.accessToken
               }
             }
-            console.log('✅ Successfully built store object from localStorage search:', store)
+            console.log('✅ Successfully built store object from auth store:', store)
           } else {
-            console.error('❌ Missing Shopee credentials in localStorage. Available keys:', shopeeKeys)
+            console.error('❌ Missing or incomplete Shopee credentials in auth store:', shopeeCredentials)
           }
         }
         
