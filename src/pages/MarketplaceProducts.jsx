@@ -164,13 +164,24 @@ export default function MarketplaceProducts() {
                   model.stock_info?.current_stock ||
                   0;
                 
+                // Get variant image from multiple sources
+                const variantImage = 
+                  model.image?.image_url || 
+                  model.image?.url ||
+                  model.image_url || 
+                  model.images?.[0]?.url ||
+                  model.images?.[0] ||
+                  item.image?.image_url_list?.[0] || 
+                  item.image?.url_list?.[0] ||
+                  '';
+                
                 return {
                   modelId: model.model_id,
                   name: model.model_name || model.name || '',
                   sku: model.model_sku || '',
                   price: variantPrice,
                   stock: variantStock,
-                  image: model.image?.image_url || model.image_url || item.image?.image_url_list?.[0] || ''
+                  image: variantImage
                 };
               }) || [];
 
@@ -188,6 +199,22 @@ export default function MarketplaceProducts() {
                 marketplaceIds.tiktokProductId = item.product_id || item.id;
               }
 
+              // Get category from marketplace
+              const categoryName = item.category_name || 
+                                   item.category?.name || 
+                                   item.categories?.[0]?.name ||
+                                   item.category_path || 
+                                   'Marketplace';
+              
+              // Get image from marketplace - try multiple sources
+              const productImage = item.image?.image_url_list?.[0] || 
+                                   item.image?.url_list?.[0] ||
+                                   item.images?.[0]?.url ||
+                                   item.images?.[0] ||
+                                   item.image_url ||
+                                   item.image ||
+                                   '';
+
               return {
                 id: Date.now() + Math.random(),
                 code: `MKT${item.item_id || item.id || Date.now()}`,
@@ -195,13 +222,13 @@ export default function MarketplaceProducts() {
                 barcode: item.item_sku || '',
                 name: item.item_name || item.name || 'Unknown Product',
                 description: item.description || '',
-                category: 'Marketplace',
+                category: categoryName,
                 unit: 'pcs',
                 cost: 0,
                 price: item.current_price || item.price_info?.[0]?.current_price || item.price || 0,
                 stock: item.current_stock || item.stock_info_v2?.summary_info?.total_available_stock || item.stock || 0,
                 minStock: 5,
-                image: item.image?.image_url_list?.[0] || item.image || '',
+                image: productImage,
                 source: store.platform,
                 shopId: store.shopId,
                 shopName: store.shopName,
@@ -224,6 +251,16 @@ export default function MarketplaceProducts() {
             
             // Track skipped products for debugging
             const skippedProducts = [];
+            
+            // Auto-add marketplace categories to local categories
+            const { categories, addCategory } = useProductStore.getState();
+            const uniqueCategories = [...new Set(productsToAdd.map(p => p.category))];
+            uniqueCategories.forEach(cat => {
+              if (cat && cat !== 'Marketplace' && !categories.includes(cat)) {
+                addCategory(cat);
+                console.log(`Added new category from marketplace: ${cat}`);
+              }
+            });
 
             // Add or update each product - use getState() to get fresh products list
             for (const product of productsToAdd) {
@@ -250,9 +287,10 @@ export default function MarketplaceProducts() {
                   // Only update if there are actual changes
                   updateProduct(existingProduct.id, {
                     name: product.name,
+                    category: product.category, // Update category from marketplace
                     price: product.price,
                     stock: product.stock,
-                    image: product.image || existingProduct.image,
+                    image: product.image || existingProduct.image, // Update image from marketplace
                     variants: product.variants || existingProduct.variants,
                     updatedAt: product.updatedAt
                   });
