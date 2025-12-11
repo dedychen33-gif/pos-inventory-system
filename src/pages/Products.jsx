@@ -1117,13 +1117,32 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
       const platformName = product.source.charAt(0).toUpperCase() + product.source.slice(1)
       setSyncMessage({ type: 'info', text: `Menyinkronkan ke ${platformName}...` })
       
+      console.log('🔄 Starting marketplace sync...', {
+        platform: product.source,
+        productId: product.shopeeItemId || product.lazadaItemId || product.tokopediaProductId || product.tiktokProductId,
+        updates: {
+          name: formData.name,
+          price: calculatedPrice,
+          stock: calculatedStock,
+          sku: formData.sku
+        }
+      })
+      
       try {
         // Get marketplace store credentials from localStorage
         const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
         const store = storeData.find(s => s.platform === product.source && s.isActive)
         
+        console.log('📦 Store data:', store ? 'Found' : 'Not found', store)
+        
         if (!store) {
-          throw new Error(`Toko ${platformName} tidak ditemukan atau tidak aktif`)
+          const errorMsg = `Toko ${platformName} tidak ditemukan atau tidak aktif`
+          setSyncing(false)
+          setSyncMessage({ type: 'error', text: `❌ ${errorMsg}` })
+          alert(`❌ Gagal Update ke ${platformName}\n\n${errorMsg}\n\nSilakan cek koneksi marketplace di Pengaturan.`)
+          setTimeout(() => setSyncMessage(null), 5000)
+          onSubmit(finalData)
+          return
         }
         
         // Prepare update data
@@ -1150,23 +1169,34 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
           variantId = null
         }
         
+        console.log('🚀 Calling marketplace API...', { productId, variantId, updates })
+        
         // Call marketplace API to update product
         const result = await marketplaceService.updateProduct(store, productId, variantId, updates)
+        
+        console.log('📥 API Response:', result)
         
         setSyncing(false)
         
         if (result.success) {
-          setSyncMessage({ type: 'success', text: `✅ Berhasil update ke ${platformName}!` })
+          const successMsg = `✅ Berhasil update ke ${platformName}!`
+          setSyncMessage({ type: 'success', text: successMsg })
+          alert(`${successMsg}\n\n✅ Nama: ${formData.name}\n✅ Harga: Rp ${calculatedPrice.toLocaleString('id-ID')}\n✅ Stok: ${calculatedStock}\n✅ SKU: ${formData.sku}`)
         } else {
-          setSyncMessage({ type: 'error', text: `❌ Gagal update: ${result.error || 'Unknown error'}` })
+          const errorMsg = result.error || 'Unknown error'
+          setSyncMessage({ type: 'error', text: `❌ Gagal update: ${errorMsg}` })
+          alert(`❌ Gagal Update ke ${platformName}\n\n${errorMsg}\n\nData lokal tetap tersimpan.`)
         }
       } catch (error) {
+        console.error('❌ Marketplace sync error:', error)
         setSyncing(false)
-        setSyncMessage({ type: 'error', text: `❌ Gagal update: ${error.message}` })
+        const errorMsg = error.message || 'Unknown error'
+        setSyncMessage({ type: 'error', text: `❌ Gagal update: ${errorMsg}` })
+        alert(`❌ Gagal Update ke ${platformName}\n\n${errorMsg}\n\nData lokal tetap tersimpan.`)
       }
       
-      // Clear message after 5 seconds
-      setTimeout(() => setSyncMessage(null), 5000)
+      // Clear message after 10 seconds
+      setTimeout(() => setSyncMessage(null), 10000)
     }
     
     onSubmit(finalData)
