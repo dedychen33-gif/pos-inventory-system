@@ -49,11 +49,11 @@ export const transformProductToDB = (p) => {
     barcode: p.barcode,
     name: p.name,
     description: p.description,
-    // Use category as string for marketplace products, or category_id for local products
+    // Use category as string for marketplace products
     category: typeof p.category === 'string' ? p.category : null,
     unit: typeof p.unit === 'string' ? p.unit : 'pcs',
-    cost_price: p.cost || 0,
-    selling_price: p.price || 0,
+    cost: p.cost || 0,
+    price: p.price || 0,
     stock: p.stock || 0,
     min_stock: p.minStock || 0,
     max_stock: p.maxStock || 0,
