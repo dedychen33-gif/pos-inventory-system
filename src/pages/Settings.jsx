@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, FileText, Clock, Filter, MessageCircle, Sync } from 'lucide-react'
+import { Settings as SettingsIcon, User, Store, Printer, Bell, Key, X, Upload, Image as ImageIcon, Database, Download, UploadCloud, Trash2, Info, Phone, Code, Cloud, RefreshCw, Check, AlertCircle, Plus, Edit2, UserX, UserCheck, Shield, ShoppingBag, Package, FileText, Clock, Filter, MessageCircle } from 'lucide-react'
 import { useAuthStore, PERMISSION_LABELS } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useProductStore } from '../store/productStore'
@@ -445,7 +445,7 @@ export default function Settings() {
         {/* Auto Sync Marketplace */}
         <div className="card">
           <div className="flex items-center gap-3 mb-4">
-            <Sync className="text-blue-500" size={24} />
+            <RefreshCw className="text-blue-500" size={24} />
             <h3 className="text-lg font-bold">Auto Sync Marketplace</h3>
           </div>
           <div className="space-y-4">
@@ -523,7 +523,7 @@ export default function Settings() {
                   </>
                 ) : (
                   <>
-                    <Sync size={16} />
+                    <RefreshCw size={16} />
                     Sync Sekarang
                   </>
                 )}
