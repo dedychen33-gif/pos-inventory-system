@@ -1139,84 +1139,88 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         
         // Fallback: Try to get from localStorage with user-specific keys (format: shopee_xxx_user_userId)
         if (!store && product.source === 'shopee') {
-          console.log('🔍 Trying to read Shopee from localStorage with user-specific keys...')
-          
-          const { user } = useAuthStore.getState()
-          const userId = user?.id || 'default'
-          
-          // Build key with format: shopee_xxx_user_userId
-          const getUserStorageKey = (key) => `${key}_user_${userId}`
-          
-          const partnerId = localStorage.getItem(getUserStorageKey('shopee_partner_id'))
-          const partnerKey = localStorage.getItem(getUserStorageKey('shopee_partner_key'))
-          const shopId = localStorage.getItem(getUserStorageKey('shopee_shop_id'))
-          const accessToken = localStorage.getItem(getUserStorageKey('shopee_access_token'))
-          
-          console.log('🔑 User ID:', userId)
-          console.log('🔑 Shopee credentials from localStorage:', {
-            partnerId: partnerId ? `✅ ${partnerId}` : '❌ Not found',
-            partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
-            shopId: shopId ? `✅ ${shopId}` : '❌ Not found',
-            accessToken: accessToken ? '✅ Found' : '❌ Not found'
-          })
-          
-          if (partnerId && partnerKey && shopId && accessToken) {
-            store = {
-              platform: 'shopee',
-              shopId: shopId,
-              shopName: user?.name || 'Shopee Store',
-              isActive: true,
-              credentials: {
-                partnerId: partnerId,
-                partnerKey: partnerKey,
-                accessToken: accessToken
-              }
-            }
-            console.log('✅ Successfully built store object from localStorage:', store)
-          } else {
-            console.error('❌ Missing Shopee credentials in localStorage with user-specific keys')
+          // Try to get from Supabase FIRST (primary source)
+          console.log('🔍 Fetching Shopee credentials from Supabase...')
+          try {
+            const { createClient } = await import('@supabase/supabase-js')
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
             
-            // Last resort: Try to get from Supabase
-            console.log('🔍 Trying to read Shopee from Supabase...')
-            try {
-              const { createClient } = await import('@supabase/supabase-js')
-              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-              const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+            if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
+              const supabase = createClient(supabaseUrl.trim(), supabaseKey.trim())
               
-              if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
-                const supabase = createClient(supabaseUrl, supabaseKey)
-                
-                // Get the first (or only) Shopee token record
-                // Don't filter by user_id since column might not exist
-                const { data, error } = await supabase
-                  .from('shopee_tokens')
-                  .select('*')
-                  .limit(1)
-                  .maybeSingle()
-                
-                if (!error && data) {
-                  store = {
-                    platform: 'shopee',
-                    shopId: data.shop_id,
-                    shopName: user?.name || 'Shopee Store',
-                    isActive: true,
-                    credentials: {
-                      partnerId: data.partner_id,
-                      partnerKey: data.partner_key,
-                      accessToken: data.access_token
-                    }
+              // Get the first (or only) Shopee token record
+              const { data, error } = await supabase
+                .from('shopee_tokens')
+                .select('*')
+                .limit(1)
+                .maybeSingle()
+              
+              if (!error && data) {
+                store = {
+                  platform: 'shopee',
+                  shopId: data.shop_id,
+                  shopName: 'Shopee Store',
+                  isActive: true,
+                  credentials: {
+                    partnerId: data.partner_id,
+                    partnerKey: data.partner_key,
+                    accessToken: data.access_token
                   }
-                  console.log('✅ Successfully built store object from Supabase:', store)
-                } else if (error) {
-                  console.error('❌ Failed to get Shopee credentials from Supabase:', error.message)
-                } else {
-                  console.warn('⚠️ No Shopee credentials found in Supabase')
                 }
+                console.log('✅ Successfully fetched Shopee credentials from Supabase:', {
+                  partnerId: data.partner_id,
+                  shopId: data.shop_id,
+                  hasAccessToken: !!data.access_token
+                })
+              } else if (error) {
+                console.error('❌ Failed to get Shopee credentials from Supabase:', error.message)
               } else {
-                console.warn('⚠️ Supabase not configured')
+                console.warn('⚠️ No Shopee credentials found in Supabase')
               }
-            } catch (e) {
-              console.error('❌ Error reading from Supabase:', e.message)
+            } else {
+              console.warn('⚠️ Supabase not configured')
+            }
+          } catch (e) {
+            console.error('❌ Error reading from Supabase:', e.message)
+          }
+          
+          // Fallback to localStorage if Supabase failed
+          if (!store) {
+            console.log('🔍 Trying localStorage as fallback...')
+            const { user } = useAuthStore.getState()
+            const userId = user?.id || 'default'
+            
+            // Build key with format: shopee_xxx_user_userId
+            const getUserStorageKey = (key) => `${key}_user_${userId}`
+            
+            const partnerId = localStorage.getItem(getUserStorageKey('shopee_partner_id'))
+            const partnerKey = localStorage.getItem(getUserStorageKey('shopee_partner_key'))
+            const shopId = localStorage.getItem(getUserStorageKey('shopee_shop_id'))
+            const accessToken = localStorage.getItem(getUserStorageKey('shopee_access_token'))
+            
+            console.log('🔑 Shopee credentials from localStorage:', {
+              partnerId: partnerId ? `✅ ${partnerId}` : '❌ Not found',
+              partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
+              shopId: shopId ? `✅ ${shopId}` : '❌ Not found',
+              accessToken: accessToken ? '✅ Found' : '❌ Not found'
+            })
+            
+            if (partnerId && partnerKey && shopId && accessToken) {
+              store = {
+                platform: 'shopee',
+                shopId: shopId,
+                shopName: user?.name || 'Shopee Store',
+                isActive: true,
+                credentials: {
+                  partnerId: partnerId,
+                  partnerKey: partnerKey,
+                  accessToken: accessToken
+                }
+              }
+              console.log('✅ Successfully built store object from localStorage:', store)
+            } else {
+              console.error('❌ Missing Shopee credentials in both Supabase and localStorage')
             }
           }
         }
