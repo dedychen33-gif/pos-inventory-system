@@ -168,6 +168,7 @@ export const useProductStore = create(
                 image_url: toString(p.image),
                 parent_id: p.parentId ? String(p.parentId) : null,
                 variant_name: toString(p.variantName),
+                variants: p.variants || [], // Save nested variants for Marketplace products
                 source: toString(p.source) || 'manual',
                 is_active: true,
                 updated_at: new Date().toISOString()
