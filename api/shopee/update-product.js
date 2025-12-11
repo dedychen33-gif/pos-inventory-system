@@ -18,15 +18,30 @@ function makeRequest(options, body = null) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const parsed = JSON.parse(data);
+          // Log the response for debugging
+          console.log('Shopee API Response:', {
+            statusCode: res.statusCode,
+            body: parsed
+          });
+          resolve(parsed);
         } catch (e) {
+          console.error('Failed to parse Shopee response:', data);
           resolve(data);
         }
       });
     });
-    req.on('error', reject);
+    req.on('error', (error) => {
+      console.error('Request error:', error);
+      reject(error);
+    });
     if (body) {
-      req.write(JSON.stringify(body));
+      const bodyStr = JSON.stringify(body);
+      console.log('Shopee API Request:', {
+        path: options.path,
+        body: bodyStr
+      });
+      req.write(bodyStr);
     }
     req.end();
   });
