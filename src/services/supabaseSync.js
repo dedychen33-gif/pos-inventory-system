@@ -43,9 +43,18 @@ export const transformProductFromDB = (p) => ({
 
 // Transform local product to Supabase format
 export const transformProductToDB = (p) => {
+  // Generate UUID if product doesn't have id (e.g., from marketplace API)
+  const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   // Build base product object with only valid fields
   const dbProduct = {
-    id: p.id, // Include id for Supabase (required field)
+    id: p.id || generateUUID(), // Generate UUID if no id exists
     code: p.code || `PRD${Date.now()}`,
     sku: p.sku || '',
     barcode: p.barcode || '',
