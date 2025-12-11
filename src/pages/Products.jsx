@@ -1137,31 +1137,44 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         console.log('🔍 Checking marketplace_stores array:', storeData)
         store = storeData.find(s => s.platform === product.source && s.isActive)
         
-        // Fallback: Try to get from auth store (marketplaceCredentials)
+        // Fallback: Try to get from localStorage with user-specific keys (format: shopee_xxx_user_userId)
         if (!store && product.source === 'shopee') {
-          console.log('🔍 Trying to read Shopee from auth store...')
+          console.log('🔍 Trying to read Shopee from localStorage with user-specific keys...')
           
-          const { user, getMyMarketplaceCredentials } = useAuthStore.getState()
-          const shopeeCredentials = getMyMarketplaceCredentials('shopee')
+          const { user } = useAuthStore.getState()
+          const userId = user?.id || 'default'
           
-          console.log('🔑 Auth store user:', user?.name, 'ID:', user?.id)
-          console.log('🔑 Shopee credentials from auth store:', shopeeCredentials)
+          // Build key with format: shopee_xxx_user_userId
+          const getUserStorageKey = (key) => `${key}_user_${userId}`
           
-          if (shopeeCredentials && shopeeCredentials.partnerId && shopeeCredentials.shopId && shopeeCredentials.accessToken) {
+          const partnerId = localStorage.getItem(getUserStorageKey('shopee_partner_id'))
+          const partnerKey = localStorage.getItem(getUserStorageKey('shopee_partner_key'))
+          const shopId = localStorage.getItem(getUserStorageKey('shopee_shop_id'))
+          const accessToken = localStorage.getItem(getUserStorageKey('shopee_access_token'))
+          
+          console.log('🔑 User ID:', userId)
+          console.log('🔑 Shopee credentials from localStorage:', {
+            partnerId: partnerId ? `✅ ${partnerId}` : '❌ Not found',
+            partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
+            shopId: shopId ? `✅ ${shopId}` : '❌ Not found',
+            accessToken: accessToken ? '✅ Found' : '❌ Not found'
+          })
+          
+          if (partnerId && partnerKey && shopId && accessToken) {
             store = {
               platform: 'shopee',
-              shopId: shopeeCredentials.shopId,
+              shopId: shopId,
               shopName: user?.name || 'Shopee Store',
               isActive: true,
               credentials: {
-                partnerId: shopeeCredentials.partnerId,
-                partnerKey: shopeeCredentials.partnerKey,
-                accessToken: shopeeCredentials.accessToken
+                partnerId: partnerId,
+                partnerKey: partnerKey,
+                accessToken: accessToken
               }
             }
-            console.log('✅ Successfully built store object from auth store:', store)
+            console.log('✅ Successfully built store object from localStorage:', store)
           } else {
-            console.error('❌ Missing or incomplete Shopee credentials in auth store:', shopeeCredentials)
+            console.error('❌ Missing Shopee credentials in localStorage with user-specific keys')
           }
         }
         
