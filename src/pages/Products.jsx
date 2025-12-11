@@ -1141,23 +1141,38 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         if (!store && product.source === 'shopee') {
           console.log('🔍 Trying to read Shopee from individual localStorage keys...')
           
-          // Get user ID from auth store
-          const { user } = useAuthStore.getState()
-          const userId = user?.id || 'default'
+          // Search all localStorage keys that contain 'shopee'
+          const allKeys = Object.keys(localStorage)
+          const shopeeKeys = allKeys.filter(k => k.toLowerCase().includes('shopee'))
+          console.log('🔍 Found Shopee-related keys:', shopeeKeys)
           
-          // Try with user-specific keys first (format: key_user_userId)
-          let partnerId = localStorage.getItem(`shopee_partner_id_user_${userId}`)
-          let partnerKey = localStorage.getItem(`shopee_partner_key_user_${userId}`)
-          let shopId = localStorage.getItem(`shopee_shop_id_user_${userId}`)
-          let accessToken = localStorage.getItem(`shopee_access_token_user_${userId}`)
+          // Find credentials by searching for keys containing specific patterns
+          let partnerId = null
+          let partnerKey = null
+          let shopId = null
+          let accessToken = null
           
-          // Fallback to non-user-specific keys
-          if (!partnerId) partnerId = localStorage.getItem('shopee_partner_id')
-          if (!partnerKey) partnerKey = localStorage.getItem('shopee_partner_key')
-          if (!shopId) shopId = localStorage.getItem('shopee_shop_id')
-          if (!accessToken) accessToken = localStorage.getItem('shopee_access_token')
+          for (const key of shopeeKeys) {
+            const value = localStorage.getItem(key)
+            if (key.includes('partner_id') && value && value !== '2014001') {
+              partnerId = value
+              console.log('✅ Found partnerId in key:', key)
+            }
+            if (key.includes('partner_key') && value) {
+              partnerKey = value
+              console.log('✅ Found partnerKey in key:', key)
+            }
+            if (key.includes('shop_id') && value) {
+              shopId = value
+              console.log('✅ Found shopId in key:', key)
+            }
+            if (key.includes('access_token') && value) {
+              accessToken = value
+              console.log('✅ Found accessToken in key:', key)
+            }
+          }
           
-          console.log('🔑 Shopee localStorage keys (user:', userId, '):', {
+          console.log('🔑 Shopee credentials found:', {
             partnerId: partnerId ? '✅ Found' : '❌ Not found',
             partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
             shopId: shopId ? '✅ Found' : '❌ Not found',
@@ -1176,9 +1191,9 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                 accessToken: accessToken
               }
             }
-            console.log('✅ Successfully built store object from individual keys:', store)
+            console.log('✅ Successfully built store object from localStorage search:', store)
           } else {
-            console.error('❌ Missing Shopee credentials in localStorage')
+            console.error('❌ Missing Shopee credentials in localStorage. Available keys:', shopeeKeys)
           }
         }
         
