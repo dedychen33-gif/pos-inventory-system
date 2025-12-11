@@ -1249,7 +1249,8 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         let productId, variantId
         if (product.source === 'shopee') {
           productId = product.shopeeItemId
-          variantId = product.shopeeModelId
+          // Try multiple fields for model_id (different sync methods may use different field names)
+          variantId = product.shopeeModelId || product.modelId || product.model_id
           
           // Validate Shopee IDs
           if (!productId) {
@@ -1266,7 +1267,12 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
             itemId: productId,
             modelId: variantId,
             productName: product.name,
-            hasModelId: !!variantId
+            hasModelId: !!variantId,
+            productFields: {
+              shopeeModelId: product.shopeeModelId,
+              modelId: product.modelId,
+              model_id: product.model_id
+            }
           })
         } else if (product.source === 'lazada') {
           productId = product.lazadaItemId
