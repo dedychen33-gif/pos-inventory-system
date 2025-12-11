@@ -1250,6 +1250,24 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         if (product.source === 'shopee') {
           productId = product.shopeeItemId
           variantId = product.shopeeModelId
+          
+          // Validate Shopee IDs
+          if (!productId) {
+            console.error('❌ Missing shopeeItemId for product:', product.name)
+            alert(`❌ Error: Produk ini tidak memiliki Shopee Item ID.\n\nProduk: ${product.name}\n\nSilakan sync ulang produk dari Shopee.`)
+            setSyncing(false)
+            setSyncMessage({ type: 'error', text: '❌ Missing Shopee Item ID' })
+            setTimeout(() => setSyncMessage(null), 5000)
+            onSubmit(finalData)
+            return
+          }
+          
+          console.log('📋 Shopee Product IDs:', {
+            itemId: productId,
+            modelId: variantId,
+            productName: product.name,
+            hasModelId: !!variantId
+          })
         } else if (product.source === 'lazada') {
           productId = product.lazadaItemId
           variantId = product.lazadaSkuId
