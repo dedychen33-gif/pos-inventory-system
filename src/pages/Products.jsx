@@ -1175,6 +1175,44 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
             console.log('✅ Successfully built store object from localStorage:', store)
           } else {
             console.error('❌ Missing Shopee credentials in localStorage with user-specific keys')
+            
+            // Last resort: Try to get from Supabase
+            console.log('🔍 Trying to read Shopee from Supabase...')
+            try {
+              const { createClient } = await import('@supabase/supabase-js')
+              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+              const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+              
+              if (supabaseUrl && supabaseKey) {
+                const supabase = createClient(supabaseUrl, supabaseKey)
+                const { data, error } = await supabase
+                  .from('shopee_tokens')
+                  .select('*')
+                  .eq('user_id', userId)
+                  .single()
+                
+                if (!error && data) {
+                  store = {
+                    platform: 'shopee',
+                    shopId: data.shop_id,
+                    shopName: user?.name || 'Shopee Store',
+                    isActive: true,
+                    credentials: {
+                      partnerId: data.partner_id,
+                      partnerKey: data.partner_key,
+                      accessToken: data.access_token
+                    }
+                  }
+                  console.log('✅ Successfully built store object from Supabase:', store)
+                } else {
+                  console.error('❌ Failed to get Shopee credentials from Supabase:', error)
+                }
+              } else {
+                console.error('❌ Supabase not configured')
+              }
+            } catch (e) {
+              console.error('❌ Error reading from Supabase:', e)
+            }
           }
         }
         
