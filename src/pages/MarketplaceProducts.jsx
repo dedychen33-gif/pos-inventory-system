@@ -108,6 +108,7 @@ export default function MarketplaceProducts() {
 
     let totalSynced = 0;
     let totalUpdated = 0;
+    let totalSkipped = 0;
     let errors = [];
 
     try {
@@ -173,6 +174,20 @@ export default function MarketplaceProducts() {
                 };
               }) || [];
 
+              // Prepare marketplace-specific IDs
+              const marketplaceIds = {};
+              if (store.platform === 'shopee') {
+                marketplaceIds.shopeeItemId = item.item_id;
+                marketplaceIds.shopeeModelId = item.model_id;
+              } else if (store.platform === 'lazada') {
+                marketplaceIds.lazadaItemId = item.item_id || item.ItemId;
+                marketplaceIds.lazadaSkuId = item.sku_id || item.SkuId;
+              } else if (store.platform === 'tokopedia') {
+                marketplaceIds.tokopediaProductId = item.product_id || item.id;
+              } else if (store.platform === 'tiktok') {
+                marketplaceIds.tiktokProductId = item.product_id || item.id;
+              }
+
               return {
                 id: Date.now() + Math.random(),
                 code: `MKT${item.item_id || item.id || Date.now()}`,
@@ -190,7 +205,7 @@ export default function MarketplaceProducts() {
                 source: store.platform,
                 shopId: store.shopId,
                 shopName: store.shopName,
-                shopeeItemId: item.item_id,
+                ...marketplaceIds,
                 marketplaceStoreId: store.id,
                 hasVariants: variants.length > 1,
                 variants: variants,
@@ -215,41 +230,73 @@ export default function MarketplaceProducts() {
               // Get current products from store (fresh state)
               const currentProducts = useProductStore.getState().products;
               
-              // Match by shopeeItemId (primary) or by SKU (secondary, but SKU must not be empty)
+              // Match by marketplace-specific ID (primary) or by SKU (secondary)
               const existingProduct = currentProducts.find(p => {
-                // Primary match: same shopeeItemId
-                if (p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) {
+                // Only check products from same platform
+                if (p.source !== store.platform) return false;
+                
+                // Primary match: marketplace-specific ID
+                if (store.platform === 'shopee' && p.shopeeItemId && p.shopeeItemId === product.shopeeItemId) {
                   return true;
                 }
+                if (store.platform === 'lazada' && p.lazadaItemId && p.lazadaItemId === product.lazadaItemId) {
+                  return true;
+                }
+                if (store.platform === 'tokopedia' && p.tokopediaProductId && p.tokopediaProductId === product.tokopediaProductId) {
+                  return true;
+                }
+                if (store.platform === 'tiktok' && p.tiktokProductId && p.tiktokProductId === product.tiktokProductId) {
+                  return true;
+                }
+                
                 // Secondary match: same platform, same SKU (but SKU must be meaningful, not empty or dash)
                 const validSku = product.sku && product.sku.trim() !== '' && product.sku.trim() !== '-';
-                if (validSku && p.source === store.platform && p.sku === product.sku) {
+                if (validSku && p.sku === product.sku) {
                   return true;
                 }
+                
                 return false;
               });
               
               if (existingProduct) {
-                // Log why this product was skipped/updated
-                skippedProducts.push({
-                  name: product.name,
-                  shopeeItemId: product.shopeeItemId,
-                  sku: product.sku,
-                  reason: 'duplicate',
-                  matchedBy: existingProduct.shopeeItemId === product.shopeeItemId ? 'shopeeItemId' : 'sku',
-                  existingId: existingProduct.id
-                });
+                // Check if there are actual changes (price or stock different)
+                const priceChanged = Math.abs(existingProduct.price - product.price) > 0.01;
+                const stockChanged = existingProduct.stock !== product.stock;
+                const hasChanges = priceChanged || stockChanged;
                 
-                // Update existing product with new data from marketplace
-                updateProduct(existingProduct.id, {
-                  name: product.name,
-                  price: product.price,
-                  stock: product.stock,
-                  image: product.image || existingProduct.image,
-                  updatedAt: product.updatedAt
-                });
-                totalUpdated++;
+                if (hasChanges) {
+                  // Only update if there are actual changes
+                  updateProduct(existingProduct.id, {
+                    name: product.name,
+                    price: product.price,
+                    stock: product.stock,
+                    image: product.image || existingProduct.image,
+                    variants: product.variants || existingProduct.variants,
+                    updatedAt: product.updatedAt
+                  });
+                  totalUpdated++;
+                  
+                  console.log(`Updated product: ${product.name} (Price: ${existingProduct.price} → ${product.price}, Stock: ${existingProduct.stock} → ${product.stock})`);
+                } else {
+                  // Skip - no changes detected
+                  let matchedBy = 'sku';
+                  if (store.platform === 'shopee' && existingProduct.shopeeItemId === product.shopeeItemId) matchedBy = 'shopeeItemId';
+                  if (store.platform === 'lazada' && existingProduct.lazadaItemId === product.lazadaItemId) matchedBy = 'lazadaItemId';
+                  if (store.platform === 'tokopedia' && existingProduct.tokopediaProductId === product.tokopediaProductId) matchedBy = 'tokopediaProductId';
+                  if (store.platform === 'tiktok' && existingProduct.tiktokProductId === product.tiktokProductId) matchedBy = 'tiktokProductId';
+                  
+                  skippedProducts.push({
+                    name: product.name,
+                    marketplaceId: product.shopeeItemId || product.lazadaItemId || product.tokopediaProductId || product.tiktokProductId,
+                    sku: product.sku,
+                    reason: 'no_changes',
+                    matchedBy: matchedBy,
+                    existingId: existingProduct.id
+                  });
+                  totalSkipped++;
+                }
               } else {
+                // New product - add it
                 addProduct(product);
                 totalSynced++;
               }
@@ -260,7 +307,7 @@ export default function MarketplaceProducts() {
               console.warn(`Skipped/Updated ${skippedProducts.length} products (duplicates):`, skippedProducts);
             }
             
-            console.log(`Sync summary for ${store.shopName}: ${totalSynced} added, ${totalUpdated} updated, ${skippedProducts.length} were duplicates`);
+            console.log(`Sync summary for ${store.shopName}: ${totalSynced} added, ${totalUpdated} updated, ${totalSkipped} skipped (no changes)`);
 
             // Update store last sync time and product count
             updateStore(store.id, { 
@@ -276,11 +323,12 @@ export default function MarketplaceProducts() {
 
       // Show summary message
       const messages = [];
-      if (totalSynced > 0) messages.push(`${totalSynced} produk baru ditambahkan`);
-      if (totalUpdated > 0) messages.push(`${totalUpdated} produk diperbarui`);
+      if (totalSynced > 0) messages.push(`✅ ${totalSynced} produk baru ditambahkan`);
+      if (totalUpdated > 0) messages.push(`🔄 ${totalUpdated} produk diperbarui`);
+      if (totalSkipped > 0) messages.push(`⏭️ ${totalSkipped} produk di-skip (sudah ada, tidak ada perubahan)`);
       
       if (messages.length > 0) {
-        alert(`Sinkronisasi berhasil!\n${messages.join('\n')}`);
+        alert(`Sinkronisasi berhasil!\n\n${messages.join('\n')}\n\n💡 Produk duplikat tidak akan ditambahkan lagi ke database lokal.`);
       } else if (errors.length > 0) {
         alert(`Sinkronisasi selesai dengan error:\n${errors.join('\n')}`);
       } else {
