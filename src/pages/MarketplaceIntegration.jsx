@@ -207,9 +207,20 @@ export default function MarketplaceIntegration() {
       });
 
       if (result.success) {
-        let successMsg = `✓ Sync ${store.shopName} berhasil! Produk: ${result.results?.products?.count || 0}, Order: ${result.results?.orders?.count || 0}`;
+        let successMsg = `✓ Sync ${store.shopName} berhasil!\n`;
+        successMsg += `📦 Produk: ${result.results?.products?.count || 0}, 📋 Order: ${result.results?.orders?.count || 0}`;
         if (importResult) {
-          successMsg += ` | Diimpor: ${importResult.imported}, Diupdate: ${importResult.updated}, Dilewati: ${importResult.skipped}`;
+          successMsg += `\n✅ ${importResult.imported} baru, ${importResult.updated} diperbarui`;
+          if (importResult.skipped > 0) {
+            successMsg += `\n⚠️ ${importResult.skipped} dilewati (SKU duplikat)`;
+          }
+          if (importResult.productsWithoutSku > 0) {
+            successMsg += `\n⚠️ ${importResult.productsWithoutSku} produk tanpa SKU`;
+          }
+          if (importResult.variantsProcessed > 0) {
+            successMsg += `\n📦 ${importResult.variantsProcessed} varian diproses`;
+          }
+          successMsg += `\n\n💡 Cek console browser (F12) untuk detail lengkap`;
         }
         setMessage({ type: 'success', text: successMsg });
       } else {

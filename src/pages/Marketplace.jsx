@@ -413,9 +413,20 @@ export default function Marketplace() {
           };
         }));
         
-        // Include skipped count in message if any
-        const skippedMsg = result.skipped > 0 ? `, ${result.skipped} dilewati (SKU duplikat)` : '';
-        setMessage({ type: 'success', text: `Berhasil sync ${items.length} produk dari Shopee! (${result.imported} baru, ${result.updated} diperbarui${skippedMsg})` });
+        // Build detailed sync message
+        let syncMsg = `Berhasil sync ${items.length} produk dari Shopee!\n`;
+        syncMsg += `✅ ${result.imported} baru, ${result.updated} diperbarui`;
+        if (result.skipped > 0) {
+          syncMsg += `\n⚠️ ${result.skipped} dilewati (SKU duplikat)`;
+        }
+        if (result.productsWithoutSku > 0) {
+          syncMsg += `\n⚠️ ${result.productsWithoutSku} produk tanpa SKU`;
+        }
+        if (result.variantsProcessed > 0) {
+          syncMsg += `\n📦 ${result.variantsProcessed} varian diproses`;
+        }
+        syncMsg += `\n\n💡 Cek console browser (F12) untuk detail lengkap`;
+        setMessage({ type: 'success', text: syncMsg });
         const syncTime = new Date();
         setLastSync(syncTime);
         localStorage.setItem(getUserStorageKey('shopee_last_sync'), syncTime.toISOString());

@@ -543,6 +543,9 @@ export const useProductStore = create(
         let imported = 0;
         let updated = 0;
         let skipped = 0;
+        const skippedDetails = [];
+        let productsWithoutSku = 0;
+        let variantsProcessed = 0;
 
         // Build a Set of existing SKUs for fast lookup (exclude empty SKUs)
         const existingSkus = new Set(
@@ -552,14 +555,22 @@ export const useProductStore = create(
         );
 
         // Debug: log first item structure
+        console.log('=== SHOPEE SYNC START ===');
+        console.log(`Total Shopee items to process: ${shopeeItems.length}`);
+        console.log(`Existing SKUs in database: ${existingSkus.size}`);
         if (shopeeItems.length > 0) {
-          console.log('ProductStore - First Shopee Item:', shopeeItems[0]);
-          console.log('ProductStore - Existing SKUs count:', existingSkus.size);
+          console.log('First Shopee Item sample:', {
+            item_id: shopeeItems[0].item_id,
+            item_name: shopeeItems[0].item_name,
+            has_model: shopeeItems[0].has_model,
+            models_count: shopeeItems[0].models?.length || 0
+          });
         }
 
         shopeeItems.forEach(item => {
           // Check if product has variants/models
-          const hasVariants = item.has_model && item.models && item.models.length > 1;
+          // Note: Even single-variant products should be treated as variants if has_model is true
+          const hasVariants = item.has_model && item.models && item.models.length >= 1;
           
           if (hasVariants) {
             // Debug: log first model structure to see price fields
@@ -581,13 +592,26 @@ export const useProductStore = create(
               // Get SKU for this variant
               const variantSku = (model.model_sku && model.model_sku.trim()) || '';
               
+              // Track products without SKU
+              if (!variantSku) {
+                productsWithoutSku++;
+              }
+              
               // Skip if SKU already exists in OTHER products (not this one) - filter duplikat
               // Allow updates to existing Shopee products
               if (existingIndex < 0 && variantSku && existingSkus.has(variantSku.toLowerCase())) {
-                console.log(`Skipping duplicate SKU: ${variantSku}`);
+                skippedDetails.push({
+                  item_id: item.item_id,
+                  model_id: model.model_id,
+                  name: `${item.item_name} - ${variantName}`,
+                  sku: variantSku,
+                  reason: 'Duplicate SKU'
+                });
                 skipped++;
                 return; // Skip this variant
               }
+              
+              variantsProcessed++;
               
               // Get price for this variant - try multiple sources
               // API now adds current_price directly to model
@@ -690,9 +714,19 @@ export const useProductStore = create(
                             (item.models && item.models.length > 0 && item.models[0]?.model_sku?.trim()) ||
                             '';
             
+            // Track products without SKU
+            if (!itemSku) {
+              productsWithoutSku++;
+            }
+            
             // Skip if SKU already exists (filter duplikat) - only for new imports
             if (existingIndex < 0 && itemSku && existingSkus.has(itemSku.toLowerCase())) {
-              console.log(`Skipping duplicate SKU: ${itemSku}`);
+              skippedDetails.push({
+                item_id: item.item_id,
+                name: item.item_name,
+                sku: itemSku,
+                reason: 'Duplicate SKU'
+              });
               skipped++;
               return; // Skip this item
             }
@@ -776,7 +810,30 @@ export const useProductStore = create(
           set({ categories: [...categories, 'Shopee'] });
         }
 
-        return { imported, updated, skipped, total: shopeeItems.length };
+        // Log detailed sync results
+        console.log('=== SHOPEE SYNC COMPLETE ===');
+        console.log(`Total items from Shopee API: ${shopeeItems.length}`);
+        console.log(`Variants processed: ${variantsProcessed}`);
+        console.log(`Products imported: ${imported}`);
+        console.log(`Products updated: ${updated}`);
+        console.log(`Products skipped: ${skipped}`);
+        console.log(`Products without SKU: ${productsWithoutSku}`);
+        console.log(`Final product count: ${existingProducts.length}`);
+        
+        if (skippedDetails.length > 0) {
+          console.log('\n=== SKIPPED PRODUCTS DETAILS ===');
+          console.log(`Total skipped: ${skippedDetails.length}`);
+          skippedDetails.slice(0, 10).forEach((detail, idx) => {
+            console.log(`${idx + 1}. ${detail.name} (SKU: ${detail.sku}) - ${detail.reason}`);
+          });
+          if (skippedDetails.length > 10) {
+            console.log(`... and ${skippedDetails.length - 10} more`);
+          }
+        }
+        
+        console.log('===========================\n');
+
+        return { imported, updated, skipped, total: shopeeItems.length, productsWithoutSku, variantsProcessed };
       },
 
       // Clear all Shopee products before sync

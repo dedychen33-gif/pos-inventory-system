@@ -165,10 +165,14 @@ export default async function handler(req, res) {
         hasNextPage = true;
         let pageCount = 0;
         const maxPages = 20; // Safety limit
+        let statusItemCount = 0;
         
         while (hasNextPage && pageCount < maxPages) {
           pageCount++;
           const listResult = await getItemList(partnerId, partnerKey, shopId, accessToken, offset, pageSize, status);
+          
+          const itemsInPage = listResult.response?.item?.length || 0;
+          statusItemCount += itemsInPage;
           
           if (debug) {
             debugInfo.push({ 
@@ -176,7 +180,7 @@ export default async function handler(req, res) {
               offset, 
               pageCount,
               hasItems: !!(listResult.response?.item?.length),
-              itemCount: listResult.response?.item?.length || 0,
+              itemCount: itemsInPage,
               totalInResponse: listResult.response?.total_count,
               hasNextPage: listResult.response?.has_next_page,
               error: listResult.error || listResult.message || null
@@ -184,6 +188,7 @@ export default async function handler(req, res) {
           }
           
           if (listResult.error) {
+            console.log(`[Shopee API] Error fetching ${status} products at offset ${offset}:`, listResult.message);
             if (debug) {
               return res.status(200).json({
                 success: false,
@@ -205,10 +210,14 @@ export default async function handler(req, res) {
             }
             hasNextPage = listResult.response.has_next_page === true;
             offset += pageSize;
+            
+            console.log(`[Shopee API] Fetched page ${pageCount} for ${status}: ${itemsInPage} items (total so far: ${allItemIds.length})`);
           } else {
             hasNextPage = false;
           }
         }
+        
+        console.log(`[Shopee API] Completed fetching ${status} products: ${statusItemCount} items`);
       }
       
       // If debug mode, return info about what we found
