@@ -341,11 +341,17 @@ export default async function handler(req, res) {
 
     if (errors.length > 0) {
       console.error('Update failed with errors:', { errors, results });
-      return res.status(400).json({
+      
+      // Return detailed error info for debugging
+      return res.status(200).json({
         success: false,
         error: errors.join(', '),
         results,
-        details: results
+        details: {
+          price_response: results.price,
+          stock_response: results.stock,
+          message: 'Check Shopee API response for details'
+        }
       });
     }
 
@@ -357,9 +363,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    res.status(500).json({
+    console.error('Handler error:', error);
+    res.status(200).json({
       success: false,
-      error: error.message
+      error: error.message,
+      stack: error.stack
     });
   }
 }
