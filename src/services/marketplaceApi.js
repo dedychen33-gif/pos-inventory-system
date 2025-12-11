@@ -271,13 +271,32 @@ export const shopeeApi = {
         access_token: store.credentials?.accessToken,
         item_id: itemId,
         model_id: modelId || null,
-        action: 'update_all', // Tell API to update all fields
-        ...updates
+        // Only send price and stock (name and sku have strict validation)
+        price: updates.price,
+        stock: updates.stock
       };
 
+      console.log('🚀 Sending to Shopee API:', {
+        endpoint,
+        item_id: itemId,
+        model_id: modelId,
+        price: updates.price,
+        stock: updates.stock,
+        has_credentials: {
+          partnerId: !!store.credentials?.partnerId,
+          partnerKey: !!store.credentials?.partnerKey,
+          accessToken: !!store.credentials?.accessToken,
+          shopId: !!store.shopId
+        }
+      });
+
       const result = await api.post(endpoint, payload);
+      
+      console.log('📥 Shopee API result:', result);
+      
       return { success: result.success !== false, data: result };
     } catch (error) {
+      console.error('❌ Shopee update error:', error);
       throw new Error(`Update produk Shopee gagal: ${error.message}`);
     }
   },
