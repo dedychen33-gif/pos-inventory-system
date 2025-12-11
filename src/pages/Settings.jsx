@@ -9,7 +9,7 @@ import { usePurchaseStore } from '../store/purchaseStore'
 import { useCartStore } from '../store/cartStore'
 import { useAuditStore, AUDIT_ACTIONS } from '../store/auditStore'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { getSyncStatus, syncLocalToSupabase } from '../services/supabaseSync'
+import { getSyncStatus, syncLocalToSupabase, deleteAllSupabaseData } from '../services/supabaseSync'
 import { toggleAutoSync, runAutoSync, getAutoSyncStatus } from '../services/autoSyncService'
 
 export default function Settings() {
@@ -138,16 +138,38 @@ export default function Settings() {
     e.target.value = ''
   }
 
-  const handleClearDatabase = () => {
-    if (!confirm('⚠️ PERINGATAN!\n\nIni akan menghapus SEMUA data:\n- Produk\n- Customer\n- Transaksi\n- Pembelian\n- Supplier\n- Settings\n- Cache Shopee\n\nData TIDAK BISA dikembalikan!\nLanjutkan?')) {
+  const handleClearDatabase = async () => {
+    if (!confirm('⚠️ PERINGATAN!\n\nIni akan menghapus SEMUA data:\n- Produk (Lokal & Supabase)\n- Customer (Lokal & Supabase)\n- Transaksi (Lokal & Supabase)\n- Pembelian\n- Supplier\n- Settings\n- Cache Shopee\n\nData TIDAK BISA dikembalikan!\nLanjutkan?')) {
       return
     }
 
-    if (!confirm('Konfirmasi sekali lagi: Anda yakin ingin menghapus SEMUA database?')) {
+    if (!confirm('Konfirmasi sekali lagi: Anda yakin ingin menghapus SEMUA database LOKAL dan SUPABASE?')) {
       return
     }
 
-    // Clear all Zustand stores first (in-memory state)
+    // Delete Supabase data first if configured
+    if (isSupabaseConfigured()) {
+      try {
+        alert('⏳ Menghapus data di Supabase...')
+        const result = await deleteAllSupabaseData()
+        
+        if (result.error) {
+          console.error('Error deleting Supabase data:', result.error)
+          if (!confirm(`⚠️ Gagal menghapus data Supabase: ${result.error}\n\nLanjutkan hapus data lokal?`)) {
+            return
+          }
+        } else {
+          console.log('Supabase data deleted:', result.data)
+        }
+      } catch (error) {
+        console.error('Error deleting Supabase data:', error)
+        if (!confirm(`⚠️ Gagal menghapus data Supabase: ${error.message}\n\nLanjutkan hapus data lokal?`)) {
+          return
+        }
+      }
+    }
+
+    // Clear all Zustand stores (in-memory state)
     useProductStore.setState({ products: [], categories: ['Makanan', 'Minuman', 'Snack', 'Sembako', 'Elektronik', 'Alat Tulis'] })
     useCustomerStore.setState({ customers: [{ id: 1, name: 'Walk-in Customer', phone: '-', email: '-', address: '-', type: 'walk-in', points: 0, totalSpent: 0, customPrices: {} }] })
     useTransactionStore.setState({ transactions: [] })
@@ -168,7 +190,7 @@ export default function Settings() {
     localStorage.removeItem('shopee_returns_cache')
     localStorage.removeItem('shopee_last_sync')
     
-    alert('Semua database berhasil dihapus! Halaman akan di-refresh.')
+    alert('✅ Semua database (lokal & Supabase) berhasil dihapus! Halaman akan di-refresh.')
     // Force hard reload to clear any cached state
     window.location.reload(true)
   }

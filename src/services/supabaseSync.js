@@ -442,3 +442,59 @@ export const syncLocalToSupabase = async (products, customers, transactions) => 
   
   return { data: results, error: null };
 };
+
+// ==================== DELETE ALL DATA ====================
+
+// Delete all data from Supabase (products, customers, transactions)
+export const deleteAllSupabaseData = async () => {
+  if (!isSupabaseConfigured()) {
+    return { data: null, error: 'Supabase not configured' };
+  }
+
+  const results = { products: 0, customers: 0, transactions: 0, errors: [] };
+
+  try {
+    // Delete all transactions
+    const { error: txError, count: txCount } = await supabase
+      .from('transactions')
+      .delete()
+      .neq('id', 0); // Delete all rows
+    
+    if (txError) {
+      results.errors.push(`Transactions: ${txError.message}`);
+    } else {
+      results.transactions = txCount || 0;
+    }
+
+    // Delete all customers (except system customers if any)
+    const { error: custError, count: custCount } = await supabase
+      .from('customers')
+      .delete()
+      .neq('id', 0); // Delete all rows
+    
+    if (custError) {
+      results.errors.push(`Customers: ${custError.message}`);
+    } else {
+      results.customers = custCount || 0;
+    }
+
+    // Delete all products
+    const { error: prodError, count: prodCount } = await supabase
+      .from('products')
+      .delete()
+      .neq('id', 0); // Delete all rows
+    
+    if (prodError) {
+      results.errors.push(`Products: ${prodError.message}`);
+    } else {
+      results.products = prodCount || 0;
+    }
+
+    return { 
+      data: results, 
+      error: results.errors.length > 0 ? results.errors.join(', ') : null 
+    };
+  } catch (error) {
+    return { data: null, error: error.message };
+  }
+};
