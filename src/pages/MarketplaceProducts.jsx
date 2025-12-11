@@ -275,13 +275,34 @@ export default function MarketplaceProducts() {
                 if (isSupabaseConfigured()) {
                   const productData = transformProductToDB(product);
                   
-                  // Check if product exists in Supabase by SKU
-                  const { data: existing } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('sku', product.sku)
-                    .eq('source', store.platform)
-                    .maybeSingle();
+                  // Check if product exists in Supabase
+                  // For Shopee: check by item_id + model_id (more accurate for variants)
+                  // For others: check by SKU
+                  let existing = null;
+                  if (store.platform === 'shopee' && product.shopeeItemId) {
+                    const query = supabase
+                      .from('products')
+                      .select('id')
+                      .eq('shopee_item_id', product.shopeeItemId)
+                      .eq('source', 'shopee');
+                    
+                    // If product has model_id (variant), check by model_id too
+                    if (product.shopeeModelId) {
+                      query.eq('shopee_model_id', product.shopeeModelId);
+                    }
+                    
+                    const { data } = await query.maybeSingle();
+                    existing = data;
+                  } else {
+                    // Fallback: check by SKU for other platforms
+                    const { data } = await supabase
+                      .from('products')
+                      .select('id')
+                      .eq('sku', product.sku)
+                      .eq('source', store.platform)
+                      .maybeSingle();
+                    existing = data;
+                  }
                   
                   if (existing) {
                     // Update existing product in Supabase
