@@ -138,6 +138,74 @@ export default function Settings() {
     e.target.value = ''
   }
 
+  const handleSyncShopeeCredentials = async () => {
+    if (!isSupabaseConfigured()) {
+      alert('❌ Supabase belum dikonfigurasi!')
+      return
+    }
+
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+      const supabase = createClient(supabaseUrl, supabaseKey)
+
+      // Get credentials from localStorage
+      const partnerId = localStorage.getItem('shopee_partner_id') || '2014001'
+      const partnerKey = localStorage.getItem('shopee_partner_key') || ''
+      const shopId = localStorage.getItem('shopee_shop_id') || '669903315'
+      const accessToken = localStorage.getItem('shopee_access_token') || ''
+      const refreshToken = localStorage.getItem('shopee_refresh_token') || ''
+
+      if (!partnerKey || !accessToken) {
+        alert('❌ Credentials Shopee tidak ditemukan di localStorage!\n\nSilakan hubungkan ke Shopee terlebih dahulu dari menu Marketplace Integration.')
+        return
+      }
+
+      // Check if record exists
+      const { data: existing } = await supabase
+        .from('shopee_tokens')
+        .select('*')
+        .limit(1)
+        .maybeSingle()
+
+      if (existing) {
+        // Update
+        const { error } = await supabase
+          .from('shopee_tokens')
+          .update({
+            partner_id: partnerId,
+            partner_key: partnerKey,
+            shop_id: shopId,
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id)
+
+        if (error) throw error
+        alert('✅ Credentials Shopee berhasil diupdate di Supabase!')
+      } else {
+        // Insert
+        const { error } = await supabase
+          .from('shopee_tokens')
+          .insert({
+            partner_id: partnerId,
+            partner_key: partnerKey,
+            shop_id: shopId,
+            access_token: accessToken,
+            refresh_token: refreshToken
+          })
+
+        if (error) throw error
+        alert('✅ Credentials Shopee berhasil disimpan di Supabase!')
+      }
+    } catch (error) {
+      console.error('Error syncing Shopee credentials:', error)
+      alert(`❌ Gagal sync credentials: ${error.message}`)
+    }
+  }
+
   const handleClearDatabase = async () => {
     if (!confirm('⚠️ PERINGATAN!\n\nIni akan menghapus SEMUA data:\n- Produk (Lokal & Supabase)\n- Customer (Lokal & Supabase)\n- Transaksi (Lokal & Supabase)\n- Pembelian\n- Supplier\n- Settings\n- Cache Shopee\n\nData TIDAK BISA dikembalikan!\nLanjutkan?')) {
       return
@@ -973,7 +1041,28 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="border-2 border-dashed border-red-300 rounded-lg p-6 text-center hover:border-red-500 transition-colors md:col-span-2">
+            <div className="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+              <div className="flex flex-col items-center gap-4">
+                <div className="bg-blue-100 p-4 rounded-full">
+                  <RefreshCw className="text-blue-600" size={32} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg mb-2 text-blue-700">Sync Shopee Credentials</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Simpan credentials Shopee ke Supabase untuk update produk
+                  </p>
+                  <button 
+                    onClick={handleSyncShopeeCredentials}
+                    className="btn btn-primary inline-flex items-center gap-2"
+                  >
+                    <Cloud size={20} />
+                    Sync ke Supabase
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-2 border-dashed border-red-300 rounded-lg p-6 text-center hover:border-red-500 transition-colors">
               <div className="flex flex-col items-center gap-4">
                 <div className="bg-red-100 p-4 rounded-full">
                   <Trash2 className="text-danger" size={32} />
