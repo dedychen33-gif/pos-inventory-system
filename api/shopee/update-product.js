@@ -206,6 +206,37 @@ async function updateItemSku(partnerId, partnerKey, shopId, accessToken, itemId,
   return await makeRequest(options, body);
 }
 
+// Update item name
+async function updateItemName(partnerId, partnerKey, shopId, accessToken, itemId, name) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const apiPath = '/api/v2/product/update_item';
+  const sign = generateSignatureV2(partnerId, partnerKey, apiPath, timestamp, accessToken, shopId);
+  
+  const queryParams = new URLSearchParams({
+    partner_id: partnerId,
+    timestamp: timestamp.toString(),
+    sign,
+    shop_id: shopId,
+    access_token: accessToken
+  });
+
+  const body = {
+    item_id: parseInt(itemId),
+    item_name: name
+  };
+
+  const options = {
+    hostname: 'partner.shopeemobile.com',
+    path: `${apiPath}?${queryParams.toString()}`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  };
+
+  return await makeRequest(options, body);
+}
+
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -224,8 +255,8 @@ export default async function handler(req, res) {
     const { 
       partner_id, partner_key, shop_id, access_token,
       item_id, model_id, 
-      price, stock, sku,
-      action // 'update_price', 'update_stock', 'update_sku', 'update_all'
+      name, price, stock, sku,
+      action // 'update_price', 'update_stock', 'update_sku', 'update_name', 'update_all'
     } = req.body;
     
     if (!partner_id || !partner_key || !shop_id || !access_token || !item_id) {
@@ -236,10 +267,18 @@ export default async function handler(req, res) {
     }
 
     const results = {
+      name: null,
       price: null,
       stock: null,
       sku: null
     };
+
+    // Update Name
+    if (action === 'update_name' || action === 'update_all') {
+      if (name !== undefined && name !== null && name !== '') {
+        results.name = await updateItemName(partner_id, partner_key, shop_id, access_token, item_id, name);
+      }
+    }
 
     // Update Price
     if (action === 'update_price' || action === 'update_all') {
@@ -272,6 +311,7 @@ export default async function handler(req, res) {
 
     // Check for errors
     const errors = [];
+    if (results.name?.error) errors.push(`Name: ${results.name.message}`);
     if (results.price?.error) errors.push(`Price: ${results.price.message}`);
     if (results.stock?.error) errors.push(`Stock: ${results.stock.message}`);
     if (results.sku?.error) errors.push(`SKU: ${results.sku.message}`);

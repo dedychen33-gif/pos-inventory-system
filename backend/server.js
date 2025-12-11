@@ -554,6 +554,89 @@ app.post('/api/orders/sync', async (req, res) => {
   res.json(result);
 });
 
+// Update product to Shopee
+app.post('/api/shopee/update-product', async (req, res) => {
+  const { partner_id, partner_key, shop_id, access_token, item_id, model_id, name, price, stock, sku } = req.body;
+  
+  if (!partner_id || !partner_key || !shop_id || !access_token || !item_id) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Missing required parameters' 
+    });
+  }
+
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const apiPath = '/api/v2/product/update_item';
+    const sign = generateSignature(partner_id, partner_key, apiPath, timestamp, access_token, shop_id);
+
+    // Prepare update payload
+    const updateData = {
+      item_id: parseInt(item_id)
+    };
+
+    // Add fields to update
+    if (name) updateData.item_name = name;
+    if (sku) updateData.item_sku = sku;
+    
+    // For price and stock, need to update model/variation
+    if (model_id && (price !== undefined || stock !== undefined)) {
+      updateData.price_list = [{
+        model_id: parseInt(model_id),
+        ...(price !== undefined && { original_price: parseFloat(price) }),
+      }];
+      
+      updateData.stock_list = [{
+        model_id: parseInt(model_id),
+        ...(stock !== undefined && { normal_stock: parseInt(stock) }),
+      }];
+    } else if (price !== undefined || stock !== undefined) {
+      // Single variant product
+      if (price !== undefined) updateData.original_price = parseFloat(price);
+      if (stock !== undefined) updateData.normal_stock = parseInt(stock);
+    }
+
+    const queryParams = new URLSearchParams({
+      partner_id: partner_id,
+      timestamp: timestamp.toString(),
+      sign,
+      shop_id: shop_id,
+      access_token: access_token
+    });
+
+    const options = {
+      hostname: 'partner.shopeemobile.com',
+      path: `${apiPath}?${queryParams.toString()}`,
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      }
+    };
+
+    const result = await shopeeRequest(options, updateData);
+    
+    if (result.error) {
+      addLog('ERROR', 'Update product failed', result);
+      return res.json({ 
+        success: false, 
+        error: result.message || result.error 
+      });
+    }
+
+    addLog('SUCCESS', `Updated product ${item_id}`);
+    res.json({ 
+      success: true, 
+      data: result 
+    });
+  } catch (error) {
+    addLog('ERROR', 'Update product error', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // ============ START SERVER ============
 
 const PORT = process.env.PORT || 3001;
