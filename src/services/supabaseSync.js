@@ -25,7 +25,14 @@ export const transformProductFromDB = (p) => ({
   image: p.image_url,
   shopeeItemId: p.shopee_item_id,
   shopeeModelId: p.shopee_model_id,
+  lazadaItemId: p.lazada_item_id,
+  lazadaSkuId: p.lazada_sku_id,
+  tokopediaProductId: p.tokopedia_product_id,
+  tiktokProductId: p.tiktok_product_id,
+  marketplaceStoreId: p.marketplace_store_id,
   source: p.source || 'local',
+  hasVariants: p.has_variants || false,
+  variants: p.variants || [],
   isVariant: p.is_variant || false,
   parentId: p.parent_product_id,
   variantName: p.variant_name,
@@ -35,7 +42,6 @@ export const transformProductFromDB = (p) => ({
 });
 
 // Transform local product to Supabase format
-// Note: Exclude fields that don't exist in Supabase schema (variants, hasVariants, marketplace IDs, etc.)
 export const transformProductToDB = (p) => {
   const dbProduct = {
     code: p.code,
@@ -52,14 +58,21 @@ export const transformProductToDB = (p) => {
     max_stock: p.maxStock || 0,
     image_url: p.image,
     source: p.source || 'local',
-    is_active: p.isActive !== false
+    is_active: p.isActive !== false,
+    has_variants: p.hasVariants || false,
+    variants: p.variants || []
   };
 
-  // Only include marketplace IDs if they exist in schema
+  // Include all marketplace IDs
   if (p.shopeeItemId) dbProduct.shopee_item_id = p.shopeeItemId;
   if (p.shopeeModelId) dbProduct.shopee_model_id = p.shopeeModelId;
+  if (p.lazadaItemId) dbProduct.lazada_item_id = p.lazadaItemId;
+  if (p.lazadaSkuId) dbProduct.lazada_sku_id = p.lazadaSkuId;
+  if (p.tokopediaProductId) dbProduct.tokopedia_product_id = p.tokopediaProductId;
+  if (p.tiktokProductId) dbProduct.tiktok_product_id = p.tiktokProductId;
+  if (p.marketplaceStoreId) dbProduct.marketplace_store_id = p.marketplaceStoreId;
   
-  // Only include variant fields if they exist in schema
+  // Include variant fields
   if (p.isVariant) dbProduct.is_variant = p.isVariant;
   if (p.parentId) dbProduct.parent_product_id = p.parentId;
   if (p.variantName) dbProduct.variant_name = p.variantName;
