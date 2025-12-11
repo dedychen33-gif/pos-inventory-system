@@ -1134,14 +1134,24 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         
         // Try to get from marketplace_stores array (new format)
         const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
+        console.log('🔍 Checking marketplace_stores array:', storeData)
         store = storeData.find(s => s.platform === product.source && s.isActive)
         
         // Fallback: Try to get from individual localStorage keys (old format for Shopee)
         if (!store && product.source === 'shopee') {
+          console.log('🔍 Trying to read Shopee from individual localStorage keys...')
+          
           const partnerId = localStorage.getItem('shopee_partner_id')
           const partnerKey = localStorage.getItem('shopee_partner_key')
           const shopId = localStorage.getItem('shopee_shop_id')
           const accessToken = localStorage.getItem('shopee_access_token')
+          
+          console.log('🔑 Shopee localStorage keys:', {
+            partnerId: partnerId ? '✅ Found' : '❌ Not found',
+            partnerKey: partnerKey ? '✅ Found' : '❌ Not found',
+            shopId: shopId ? '✅ Found' : '❌ Not found',
+            accessToken: accessToken ? '✅ Found' : '❌ Not found'
+          })
           
           if (partnerId && partnerKey && shopId && accessToken) {
             store = {
@@ -1155,11 +1165,13 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                 accessToken: accessToken
               }
             }
-            console.log('📦 Using Shopee credentials from individual localStorage keys')
+            console.log('✅ Successfully built store object from individual keys:', store)
+          } else {
+            console.error('❌ Missing Shopee credentials in localStorage')
           }
         }
         
-        console.log('📦 Store data:', store ? 'Found' : 'Not found', store)
+        console.log('📦 Final store data:', store ? 'Found' : 'Not found', store)
         
         if (!store) {
           const errorMsg = `Toko ${platformName} tidak ditemukan atau tidak aktif`
