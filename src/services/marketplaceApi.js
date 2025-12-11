@@ -258,6 +258,29 @@ export const shopeeApi = {
     });
   },
 
+  // Update product (name, price, SKU, stock)
+  updateProduct: async (store, itemId, modelId, updates) => {
+    try {
+      const api = createApiInstance('shopee');
+      const endpoint = isProduction ? '/update-product' : '/products/update';
+      
+      const payload = {
+        shop_id: store.shopId,
+        partner_id: store.credentials?.partnerId,
+        partner_key: store.credentials?.partnerKey,
+        access_token: store.credentials?.accessToken,
+        item_id: itemId,
+        model_id: modelId || null,
+        ...updates
+      };
+
+      const result = await api.post(endpoint, payload);
+      return { success: result.success !== false, data: result };
+    } catch (error) {
+      throw new Error(`Update produk Shopee gagal: ${error.message}`);
+    }
+  },
+
   // Test connection
   testConnection: async (store) => {
     try {
@@ -442,6 +465,28 @@ export const lazadaApi = {
     });
   },
 
+  // Update product (name, price, SKU, stock)
+  updateProduct: async (store, itemId, skuId, updates) => {
+    try {
+      const api = createApiInstance('lazada');
+      const endpoint = isProduction ? '/update-product' : '/products/update';
+      
+      const payload = {
+        app_key: store.credentials?.appKey,
+        app_secret: store.credentials?.appSecret,
+        access_token: store.credentials?.accessToken,
+        item_id: itemId,
+        sku_id: skuId || null,
+        ...updates
+      };
+
+      const result = await api.post(endpoint, payload);
+      return { success: result.success !== false, data: result };
+    } catch (error) {
+      throw new Error(`Update produk Lazada gagal: ${error.message}`);
+    }
+  },
+
   // Test connection
   testConnection: async (store) => {
     try {
@@ -579,6 +624,27 @@ export const tokopediaApi = {
     });
   },
 
+  // Update product (name, price, SKU, stock)
+  updateProduct: async (store, productId, updates) => {
+    try {
+      const api = createApiInstance('tokopedia');
+      const endpoint = isProduction ? '/update-product' : '/products/update';
+      
+      const payload = {
+        shop_id: store.shopId,
+        fs_id: store.credentials?.fsId,
+        access_token: store.credentials?.accessToken,
+        product_id: productId,
+        ...updates
+      };
+
+      const result = await api.post(endpoint, payload);
+      return { success: result.success !== false, data: result };
+    } catch (error) {
+      throw new Error(`Update produk Tokopedia gagal: ${error.message}`);
+    }
+  },
+
   // Test connection
   testConnection: async (store) => {
     try {
@@ -697,6 +763,26 @@ export const tiktokApi = {
       product_id: productId,
       stock
     });
+  },
+
+  // Update product (name, price, SKU, stock)
+  updateProduct: async (store, productId, updates) => {
+    try {
+      const api = createApiInstance('tiktok');
+      const endpoint = isProduction ? '/update-product' : '/products/update';
+      
+      const payload = {
+        shop_id: store.shopId,
+        access_token: store.credentials?.accessToken,
+        product_id: productId,
+        ...updates
+      };
+
+      const result = await api.post(endpoint, payload);
+      return { success: result.success !== false, data: result };
+    } catch (error) {
+      throw new Error(`Update produk TikTok gagal: ${error.message}`);
+    }
   },
 
   // Test connection
@@ -916,6 +1002,24 @@ export const marketplaceService = {
     }
     
     return api.updateStock(store, productId, stock);
+  },
+
+  // Update product (name, price, SKU, stock) on marketplace
+  updateProduct: async (store, productId, variantId, updates) => {
+    if (store.platform === 'manual') {
+      return { success: true, message: 'Produk lokal diperbarui' };
+    }
+    
+    const api = marketplaceService.getApi(store.platform);
+    if (!api || !api.updateProduct) {
+      throw new Error('Platform tidak mendukung update produk');
+    }
+    
+    // Call platform-specific updateProduct
+    // Shopee uses itemId + modelId
+    // Lazada uses itemId + skuId
+    // Tokopedia/TikTok uses productId only
+    return api.updateProduct(store, productId, variantId, updates);
   },
 
   // Get products from marketplace

@@ -186,3 +186,40 @@
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* Android Responsive Optimizations */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+  
+  .card {
+    @apply p-3;
+  }
+  
+  .btn {
+    @apply text-sm;
+  }
+  
+  .input {
+    @apply text-sm;
+  }
+}
+
+/* Better touch targets for Android */
+@media (hover: none) and (pointer: coarse) {
+  button, a, .btn {
+    min-height: 44px;
+  }
+}
+
+/* Very small screens optimization */
+@media (max-width: 375px) {
+  html {
+    font-size: 13px;
+  }
+  
+  .card {
+    @apply p-2;
+  }
+}

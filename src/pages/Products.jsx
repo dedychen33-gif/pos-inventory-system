@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
 import BarcodeScanner from '../components/BarcodeScanner'
 import BarcodeGenerator, { BarcodeImage } from '../components/BarcodeGenerator'
+import { marketplaceService } from '../services/marketplaceApi'
 
 // Detect if we're on production or local
 const isProduction = window.location.hostname !== 'localhost';
@@ -900,7 +901,7 @@ export default function Products() {
 
 function ProductModal({ product, categories, onClose, onSubmit, onManageCategories, onManageUnits }) {
   const { products, units } = useProductStore()
-  const [syncToShopee, setSyncToShopee] = useState(false)
+  const [syncToMarketplace, setSyncToMarketplace] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState(null)
   const [formData, setFormData] = useState(product || {
@@ -1007,27 +1008,62 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
       minStock: calculatedMinStock
     }
     
-    // Sync to Shopee if enabled and product is from Shopee
-    if (syncToShopee && product?.shopeeItemId) {
+    // Sync to Marketplace if enabled and product is from marketplace
+    if (syncToMarketplace && product && ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(product.source)) {
       setSyncing(true)
-      setSyncMessage({ type: 'info', text: 'Menyinkronkan ke Shopee...' })
+      const platformName = product.source.charAt(0).toUpperCase() + product.source.slice(1)
+      setSyncMessage({ type: 'info', text: `Menyinkronkan ke ${platformName}...` })
       
-      const result = await updateProductToShopee(product, {
-        price: calculatedPrice,
-        stock: calculatedStock,
-        sku: formData.sku
-      })
-      
-      setSyncing(false)
-      
-      if (result.success) {
-        setSyncMessage({ type: 'success', text: '✅ Berhasil sync ke Shopee!' })
-      } else {
-        setSyncMessage({ type: 'error', text: `❌ Gagal sync: ${result.error}` })
+      try {
+        // Get marketplace store credentials from localStorage
+        const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
+        const store = storeData.find(s => s.platform === product.source && s.isActive)
+        
+        if (!store) {
+          throw new Error(`Toko ${platformName} tidak ditemukan atau tidak aktif`)
+        }
+        
+        // Prepare update data
+        const updates = {
+          name: formData.name,
+          price: calculatedPrice,
+          stock: calculatedStock,
+          sku: formData.sku
+        }
+        
+        // Get product ID and variant ID based on platform
+        let productId, variantId
+        if (product.source === 'shopee') {
+          productId = product.shopeeItemId
+          variantId = product.shopeeModelId
+        } else if (product.source === 'lazada') {
+          productId = product.lazadaItemId
+          variantId = product.lazadaSkuId
+        } else if (product.source === 'tokopedia') {
+          productId = product.tokopediaProductId
+          variantId = null
+        } else if (product.source === 'tiktok') {
+          productId = product.tiktokProductId
+          variantId = null
+        }
+        
+        // Call marketplace API to update product
+        const result = await marketplaceService.updateProduct(store, productId, variantId, updates)
+        
+        setSyncing(false)
+        
+        if (result.success) {
+          setSyncMessage({ type: 'success', text: `✅ Berhasil update ke ${platformName}!` })
+        } else {
+          setSyncMessage({ type: 'error', text: `❌ Gagal update: ${result.error || 'Unknown error'}` })
+        }
+      } catch (error) {
+        setSyncing(false)
+        setSyncMessage({ type: 'error', text: `❌ Gagal update: ${error.message}` })
       }
       
-      // Clear message after 3 seconds
-      setTimeout(() => setSyncMessage(null), 3000)
+      // Clear message after 5 seconds
+      setTimeout(() => setSyncMessage(null), 5000)
     }
     
     onSubmit(finalData)
@@ -1105,23 +1141,23 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
           </div>
         )}
         
-        {/* Shopee Sync Option - only for Shopee products */}
-        {product?.shopeeItemId && (
-          <div className="mx-6 mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+        {/* Marketplace Sync Option - for all marketplace products */}
+        {product && ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(product.source) && (
+          <div className="mx-6 mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={syncToShopee}
-                onChange={(e) => setSyncToShopee(e.target.checked)}
-                className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                checked={syncToMarketplace}
+                onChange={(e) => setSyncToMarketplace(e.target.checked)}
+                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
               />
               <div className="flex items-center gap-2">
-                <Upload size={18} className="text-orange-600" />
-                <span className="font-medium text-orange-800">Sync perubahan ke Shopee</span>
+                <Upload size={18} className="text-blue-600" />
+                <span className="font-medium text-blue-800">Update juga ke {product.source.charAt(0).toUpperCase() + product.source.slice(1)}</span>
               </div>
             </label>
-            <p className="text-xs text-orange-600 mt-2 ml-8">
-              Harga, stok, dan SKU akan diperbarui di Shopee saat menyimpan
+            <p className="text-xs text-blue-600 mt-2 ml-8">
+              Nama, harga, stok, dan SKU akan diperbarui di marketplace saat menyimpan
             </p>
           </div>
         )}
@@ -1731,9 +1767,9 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                 </>
               ) : (
                 <>
-                  {syncToShopee && product?.shopeeItemId && <Upload size={18} />}
+                  {syncToMarketplace && product && ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(product.source) && <Upload size={18} />}
                   {product ? 'Update Produk' : 'Simpan Produk'}
-                  {syncToShopee && product?.shopeeItemId && ' + Sync'}
+                  {syncToMarketplace && product && ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(product.source) && ' + Sync'}
                 </>
               )}
             </button>

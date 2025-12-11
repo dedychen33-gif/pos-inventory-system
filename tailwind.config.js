@@ -13,6 +13,12 @@ export default {
         warning: '#f59e0b',
         info: '#06b6d4',
         dark: '#1f2937',
+      },
+      screens: {
+        'xs': '375px',
+      },
+      fontSize: {
+        'xxs': '0.625rem',
       }
     },
   },

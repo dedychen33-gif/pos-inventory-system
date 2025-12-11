@@ -125,14 +125,14 @@ export default function Layout({ children }) {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Top App Bar */}
-      <header className="bg-dark text-white px-4 py-3 flex items-center justify-between z-40 safe-area-top">
+      <header className="bg-dark text-white px-3 py-2.5 flex items-center justify-between z-40 safe-area-top">
         <button
           onClick={() => setDrawerOpen(true)}
           className="p-2 -ml-2 rounded-full hover:bg-gray-700 active:bg-gray-600"
         >
           <Menu size={24} />
         </button>
-        <h1 className="text-lg font-semibold">
+        <h1 className="text-base sm:text-lg font-semibold truncate flex-1 mx-2">
           {menuItems.find(item => item.path === location.pathname)?.label || 'POS System'}
         </h1>
         <div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ export default function Layout({ children }) {
 
       {/* Drawer / Side Menu */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-dark text-white z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+        className={`fixed top-0 left-0 h-full w-[85vw] max-w-xs bg-dark text-white z-50 transform transition-transform duration-300 ease-out flex flex-col ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -334,7 +334,7 @@ export default function Layout({ children }) {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom">
-        <div className="flex justify-around items-center h-16">
+        <div className="flex justify-around items-center h-14">
           {bottomNavItems.map((item) => {
             if (!hasAccess(item.permission || 'all')) return null
             
@@ -351,8 +351,8 @@ export default function Layout({ children }) {
                     : 'text-gray-500 active:text-gray-700'
                 }`}
               >
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={`text-xs mt-1 ${isActive ? 'font-medium' : ''}`}>
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={`text-[10px] mt-0.5 leading-tight ${isActive ? 'font-medium' : ''}`}>
                   {item.label}
                 </span>
               </Link>
@@ -363,8 +363,8 @@ export default function Layout({ children }) {
             onClick={() => setDrawerOpen(true)}
             className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 active:text-gray-700"
           >
-            <Menu size={24} />
-            <span className="text-xs mt-1">Lainnya</span>
+            <Menu size={20} />
+            <span className="text-[10px] mt-0.5 leading-tight">Lainnya</span>
           </button>
         </div>
       </nav>
