@@ -216,25 +216,7 @@ export const useProductStore = create(
           code: product.code || `PRD${String(get().products.length + 1).padStart(3, '0')}`
         }
 
-        // Add locally first (optimistic update)
-        set((state) => ({ products: [...state.products, newProduct] }))
-
-        // Audit log for product add
-        useAuditStore.getState().addLog(
-          AUDIT_ACTIONS.PRODUCT_ADD,
-          {
-            productId: newProduct.id,
-            productCode: newProduct.code,
-            productName: newProduct.name,
-            category: newProduct.category,
-            price: newProduct.price,
-            stock: newProduct.stock
-          },
-          userId,
-          userName
-        )
-
-        // Sync to Supabase if configured
+        // BigSeller-style: Save to Supabase first (central hub)
         if (isSupabaseConfigured()) {
           const { error } = await supabase.from('products').insert({
             id: newProduct.id,
@@ -252,38 +234,45 @@ export const useProductStore = create(
             max_stock: newProduct.maxStock || 0,
             image_url: newProduct.image,
             parent_id: newProduct.parentId,
-            variant_name: newProduct.variantName
+            variant_name: newProduct.variantName,
+            source: newProduct.source || 'manual',
+            is_active: true
           })
           
           if (error) {
-            console.error('Error adding product to Supabase:', error)
+            console.error('❌ Error adding product to Supabase:', error)
+            // Don't update cache if Supabase fails
+            return { success: false, error: error.message }
           }
+          console.log('✅ Product added to Supabase (central hub)')
         }
+
+        // Then update localStorage (cache)
+        set((state) => ({ products: [...state.products, newProduct] }))
+        console.log('✅ Product cached in localStorage')
+
+        // Audit log for product add
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.PRODUCT_ADD,
+          {
+            productId: newProduct.id,
+            productCode: newProduct.code,
+            productName: newProduct.name,
+            category: newProduct.category,
+            price: newProduct.price,
+            stock: newProduct.stock
+          },
+          userId,
+          userName
+        )
+        
+        return { success: true }
       },
       
       updateProduct: async (id, updatedProduct, userId = null, userName = null) => {
         const oldProduct = get().products.find(p => p.id === id)
         
-        // Update locally first
-        set((state) => ({
-          products: state.products.map((p) => (p.id === id ? { ...p, ...updatedProduct } : p))
-        }))
-
-        // Audit log for product edit
-        useAuditStore.getState().addLog(
-          AUDIT_ACTIONS.PRODUCT_EDIT,
-          {
-            productId: id,
-            productName: updatedProduct.name || oldProduct?.name,
-            changes: Object.keys(updatedProduct).filter(k => 
-              oldProduct && updatedProduct[k] !== oldProduct[k]
-            )
-          },
-          userId,
-          userName
-        )
-
-        // Sync to Supabase
+        // BigSeller-style: Update Supabase first (central hub)
         if (isSupabaseConfigured()) {
           const { error } = await supabase.from('products').update({
             code: updatedProduct.code,
@@ -298,15 +287,64 @@ export const useProductStore = create(
             stock: updatedProduct.stock,
             min_stock: updatedProduct.minStock,
             max_stock: updatedProduct.maxStock,
-            image_url: updatedProduct.image
+            image_url: updatedProduct.image,
+            updated_at: new Date().toISOString()
           }).eq('id', id)
           
-          if (error) console.error('Error updating product:', error)
+          if (error) {
+            console.error('❌ Error updating product in Supabase:', error)
+            return { success: false, error: error.message }
+          }
+          console.log('✅ Product updated in Supabase (central hub)')
         }
+
+        // Then update localStorage (cache)
+        set((state) => ({
+          products: state.products.map((p) => (p.id === id ? { ...p, ...updatedProduct } : p))
+        }))
+        console.log('✅ Product cache updated in localStorage')
+
+        // Audit log for product edit
+        useAuditStore.getState().addLog(
+          AUDIT_ACTIONS.PRODUCT_EDIT,
+          {
+            productId: id,
+            productName: updatedProduct.name || oldProduct?.name,
+            changes: Object.keys(updatedProduct).filter(k => 
+              oldProduct && updatedProduct[k] !== oldProduct[k]
+            )
+          },
+          userId,
+          userName
+        )
+        
+        return { success: true }
       },
       
       deleteProduct: async (id, userId = null, userName = null) => {
         const product = get().products.find(p => p.id === id)
+        
+        // BigSeller-style: Delete from Supabase first (central hub - soft delete)
+        if (isSupabaseConfigured()) {
+          const { error } = await supabase.from('products')
+            .update({ 
+              is_active: false,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+          
+          if (error) {
+            console.error('❌ Error deleting product from Supabase:', error)
+            return { success: false, error: error.message }
+          }
+          console.log('✅ Product deleted from Supabase (central hub)')
+        }
+
+        // Then delete from localStorage (cache)
+        set((state) => ({
+          products: state.products.filter((p) => p.id !== id)
+        }))
+        console.log('✅ Product removed from localStorage cache')
         
         // Audit log for product delete
         useAuditStore.getState().addLog(
@@ -319,20 +357,8 @@ export const useProductStore = create(
           userId,
           userName
         )
-
-        // Delete locally first
-        set((state) => ({
-          products: state.products.filter((p) => p.id !== id)
-        }))
-
-        // Sync to Supabase (soft delete)
-        if (isSupabaseConfigured()) {
-          const { error } = await supabase.from('products')
-            .update({ is_active: false })
-            .eq('id', id)
-          
-          if (error) console.error('Error deleting product:', error)
-        }
+        
+        return { success: true }
       },
 
       addCategory: async (category) => {
