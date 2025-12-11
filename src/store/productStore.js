@@ -137,27 +137,42 @@ export const useProductStore = create(
           // Process in batches of 50 to avoid payload limits
           const batchSize = 50
           for (let i = 0; i < localProducts.length; i += batchSize) {
-            const batch = localProducts.slice(i, i + batchSize).map(p => ({
-              id: String(p.id), // Ensure ID is string
-              code: p.code || '',
-              sku: p.sku || '',
-              barcode: p.barcode || '',
-              name: p.name || '',
-              description: p.description || '',
-              category: p.category || '',
-              unit: p.unit || 'pcs',
-              price: Number(p.price) || 0,
-              cost: Number(p.cost) || 0,
-              stock: Number(p.stock) || 0,
-              min_stock: Number(p.minStock) || 0,
-              max_stock: Number(p.maxStock) || 0,
-              image_url: p.image || '',
-              parent_id: p.parentId ? String(p.parentId) : null,
-              variant_name: p.variantName || '',
-              source: p.source || 'manual',
-              is_active: true,
-              updated_at: new Date().toISOString()
-            }))
+            const batch = localProducts.slice(i, i + batchSize).map(p => {
+              // Helper function to safely convert to number
+              const toNumber = (val) => {
+                if (val === null || val === undefined || val === '') return 0
+                const num = Number(val)
+                return isNaN(num) ? 0 : num
+              }
+              
+              // Helper function to safely convert to string
+              const toString = (val) => {
+                if (val === null || val === undefined) return ''
+                return String(val).trim()
+              }
+              
+              return {
+                id: String(p.id), // Ensure ID is string
+                code: toString(p.code),
+                sku: toString(p.sku),
+                barcode: toString(p.barcode),
+                name: toString(p.name) || 'Unnamed Product',
+                description: toString(p.description),
+                category: toString(p.category),
+                unit: toString(p.unit) || 'pcs',
+                price: toNumber(p.price),
+                cost: toNumber(p.cost),
+                stock: toNumber(p.stock),
+                min_stock: toNumber(p.minStock),
+                max_stock: toNumber(p.maxStock),
+                image_url: toString(p.image),
+                parent_id: p.parentId ? String(p.parentId) : null,
+                variant_name: toString(p.variantName),
+                source: toString(p.source) || 'manual',
+                is_active: true,
+                updated_at: new Date().toISOString()
+              }
+            })
 
             const { error } = await supabase
               .from('products')
