@@ -237,8 +237,28 @@ export default function Products() {
 
   // Group products by parent (for variants - both local and Shopee)
   const groupedProducts = filteredProducts.reduce((acc, product) => {
-    // Use parentItemId for Shopee products, parentName for local products
-    const parentKey = product.parentItemId || product.parentName || product.id
+    // 1. Handle Marketplace Product (already has variants array)
+    if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+      acc[product.id] = {
+        parent: product,
+        variants: product.variants.map(v => ({
+          ...v,
+          id: v.id || v.modelId || `${product.id}-${v.sku || Math.random()}`, // Ensure variant has ID
+          variantName: v.name || v.variantName, // Normalize name
+          source: product.source,
+          category: product.category,
+          sku: v.sku || v.modelSku,
+          price: v.price,
+          stock: v.stock,
+          image: v.image || product.image
+        }))
+      }
+      return acc
+    }
+
+    // 2. Handle Local Product (flat structure, grouped by parent)
+    // Use parentId (preferred) or parentName
+    const parentKey = product.parentId || product.parentName || product.id
     
     if (!acc[parentKey]) {
       acc[parentKey] = {
@@ -247,8 +267,8 @@ export default function Products() {
       }
     }
     
-    // If this is a variant (has parentItemId or parentName), add to variants
-    if (product.isVariant && (product.parentItemId || product.parentName)) {
+    // If this is a variant (has parentId or parentName)
+    if (product.isVariant && (product.parentId || product.parentName)) {
       acc[parentKey].variants.push(product)
       // Set parent info from first variant if not set
       if (!acc[parentKey].parent) {
@@ -258,7 +278,8 @@ export default function Products() {
           image: product.image,
           category: product.category,
           source: product.source,
-          shopeeItemId: product.parentItemId || product.shopeeItemId
+          sku: product.sku ? product.sku.split('-')[0] : '', // Try to guess parent SKU
+          shopeeItemId: product.shopeeItemId
         }
       }
     } else {
