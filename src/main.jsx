@@ -13,6 +13,9 @@ import { useProductStore } from './store/productStore'
 import { useCustomerStore } from './store/customerStore'
 import { useTransactionStore } from './store/transactionStore'
 
+// Dummy data for testing
+import { seedDummyData, clearDummyData } from './utils/seedDummyData'
+
 // Initialize Capacitor plugins
 const initCapacitor = async () => {
   try {
@@ -52,6 +55,14 @@ CapApp.addListener('backButton', ({ canGoBack }) => {
 
 initCapacitor()
 initRealtimeSync()
+
+if (import.meta.env.DEV) {
+  window.seedDummyData = seedDummyData
+  window.clearDummyData = clearDummyData
+  console.log(' Test functions available in console:')
+  console.log('   - seedDummyData() - Add dummy products, customers & transactions')
+  console.log('   - clearDummyData() - Clear all dummy data')
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
