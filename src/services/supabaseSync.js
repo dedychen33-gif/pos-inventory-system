@@ -45,6 +45,7 @@ export const transformProductFromDB = (p) => ({
 export const transformProductToDB = (p) => {
   // Build base product object with only valid fields
   const dbProduct = {
+    id: p.id, // Include id for Supabase (required field)
     code: p.code || `PRD${Date.now()}`,
     sku: p.sku || '',
     barcode: p.barcode || '',
