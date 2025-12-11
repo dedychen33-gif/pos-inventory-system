@@ -35,28 +35,37 @@ export const transformProductFromDB = (p) => ({
 });
 
 // Transform local product to Supabase format
-export const transformProductToDB = (p) => ({
-  code: p.code,
-  sku: p.sku,
-  barcode: p.barcode,
-  name: p.name,
-  description: p.description,
-  category_id: typeof p.category === 'number' ? p.category : null,
-  unit_id: typeof p.unit === 'number' ? p.unit : null,
-  cost_price: p.cost || 0,
-  selling_price: p.price || 0,
-  stock: p.stock || 0,
-  min_stock: p.minStock || 0,
-  max_stock: p.maxStock || 0,
-  image_url: p.image,
-  shopee_item_id: p.shopeeItemId,
-  shopee_model_id: p.shopeeModelId,
-  source: p.source || 'local',
-  is_variant: p.isVariant || false,
-  parent_product_id: p.parentId,
-  variant_name: p.variantName,
-  is_active: p.isActive !== false
-});
+// Note: Exclude fields that don't exist in Supabase schema (variants, hasVariants, marketplace IDs, etc.)
+export const transformProductToDB = (p) => {
+  const dbProduct = {
+    code: p.code,
+    sku: p.sku,
+    barcode: p.barcode,
+    name: p.name,
+    description: p.description,
+    category_id: typeof p.category === 'number' ? p.category : null,
+    unit_id: typeof p.unit === 'number' ? p.unit : null,
+    cost_price: p.cost || 0,
+    selling_price: p.price || 0,
+    stock: p.stock || 0,
+    min_stock: p.minStock || 0,
+    max_stock: p.maxStock || 0,
+    image_url: p.image,
+    source: p.source || 'local',
+    is_active: p.isActive !== false
+  };
+
+  // Only include marketplace IDs if they exist in schema
+  if (p.shopeeItemId) dbProduct.shopee_item_id = p.shopeeItemId;
+  if (p.shopeeModelId) dbProduct.shopee_model_id = p.shopeeModelId;
+  
+  // Only include variant fields if they exist in schema
+  if (p.isVariant) dbProduct.is_variant = p.isVariant;
+  if (p.parentId) dbProduct.parent_product_id = p.parentId;
+  if (p.variantName) dbProduct.variant_name = p.variantName;
+
+  return dbProduct;
+};
 
 // Fetch all products
 export const fetchProducts = async () => {
