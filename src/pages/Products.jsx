@@ -1130,8 +1130,34 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
       
       try {
         // Get marketplace store credentials from localStorage
+        let store = null
+        
+        // Try to get from marketplace_stores array (new format)
         const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
-        const store = storeData.find(s => s.platform === product.source && s.isActive)
+        store = storeData.find(s => s.platform === product.source && s.isActive)
+        
+        // Fallback: Try to get from individual localStorage keys (old format for Shopee)
+        if (!store && product.source === 'shopee') {
+          const partnerId = localStorage.getItem('shopee_partner_id')
+          const partnerKey = localStorage.getItem('shopee_partner_key')
+          const shopId = localStorage.getItem('shopee_shop_id')
+          const accessToken = localStorage.getItem('shopee_access_token')
+          
+          if (partnerId && partnerKey && shopId && accessToken) {
+            store = {
+              platform: 'shopee',
+              shopId: shopId,
+              shopName: 'Shopee Store',
+              isActive: true,
+              credentials: {
+                partnerId: partnerId,
+                partnerKey: partnerKey,
+                accessToken: accessToken
+              }
+            }
+            console.log('📦 Using Shopee credentials from individual localStorage keys')
+          }
+        }
         
         console.log('📦 Store data:', store ? 'Found' : 'Not found', store)
         
