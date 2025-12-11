@@ -1183,13 +1183,16 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
               const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
               
-              if (supabaseUrl && supabaseKey) {
+              if (supabaseUrl && supabaseKey && supabaseUrl !== 'your-supabase-url') {
                 const supabase = createClient(supabaseUrl, supabaseKey)
+                
+                // Get the first (or only) Shopee token record
+                // Don't filter by user_id since column might not exist
                 const { data, error } = await supabase
                   .from('shopee_tokens')
                   .select('*')
-                  .eq('user_id', userId)
-                  .single()
+                  .limit(1)
+                  .maybeSingle()
                 
                 if (!error && data) {
                   store = {
@@ -1204,14 +1207,16 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                     }
                   }
                   console.log('✅ Successfully built store object from Supabase:', store)
+                } else if (error) {
+                  console.error('❌ Failed to get Shopee credentials from Supabase:', error.message)
                 } else {
-                  console.error('❌ Failed to get Shopee credentials from Supabase:', error)
+                  console.warn('⚠️ No Shopee credentials found in Supabase')
                 }
               } else {
-                console.error('❌ Supabase not configured')
+                console.warn('⚠️ Supabase not configured')
               }
             } catch (e) {
-              console.error('❌ Error reading from Supabase:', e)
+              console.error('❌ Error reading from Supabase:', e.message)
             }
           }
         }
