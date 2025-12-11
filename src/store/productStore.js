@@ -790,6 +790,8 @@ function transformProduct(row) {
     image: row.image_url,
     parentId: row.parent_id,
     variantName: row.variant_name,
+    variants: row.variants || [], // Load nested variants
+    source: row.source || 'manual',
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
