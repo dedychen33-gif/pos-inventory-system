@@ -33,14 +33,24 @@ const initCapacitor = async () => {
 
 // Initialize Supabase realtime sync
 const initRealtimeSync = async () => {
+  // Check if Supabase is configured
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  
+  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your-supabase-url' || supabaseKey === 'your-supabase-anon-key') {
+    console.log('⚠️ Supabase not configured - skipping realtime sync')
+    return
+  }
+  
   console.log('Initializing realtime sync...')
   try {
     await useProductStore.getState().initRealtime()
     await useCustomerStore.getState().initRealtime()
     await useTransactionStore.getState().initRealtime()
-    console.log('Realtime sync initialized!')
+    console.log('✅ Realtime sync initialized!')
   } catch (error) {
-    console.log('Realtime sync error (offline mode):', error)
+    console.warn('⚠️ Realtime sync not available (offline mode or Supabase issue):', error.message)
+    // Don't retry if it fails - just continue without realtime
   }
 }
 
