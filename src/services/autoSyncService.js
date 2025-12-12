@@ -26,6 +26,14 @@ class AutoSyncService {
 
   // Jalankan auto-sync lengkap (produk + pesanan + cloud)
   async runAutoSync() {
+    // Check if data was just restored - skip sync to preserve restored data
+    const justRestored = localStorage.getItem('just-restored')
+    if (justRestored === 'true') {
+      console.log('🔄 Data just restored from backup - skipping auto sync')
+      localStorage.removeItem('just-restored')
+      return { success: false, message: 'Data baru di-restore, sync dilewati' }
+    }
+
     if (this.isRunning) {
       console.log('Auto sync already running, skipping...')
       return { success: false, message: 'Auto sync sedang berjalan' }

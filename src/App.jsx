@@ -1,9 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
 import { RealtimeSyncProvider } from './hooks/useRealtimeSync'
-import { initializeAutoSync } from './services/autoSyncService'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -16,30 +14,15 @@ import Customers from './pages/Customers'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import RemoteScanner from './pages/RemoteScanner'
-import MarketplaceCallback from './pages/MarketplaceCallback'
-import MarketplaceIntegration from './pages/MarketplaceIntegration'
-import MarketplaceOrders from './pages/MarketplaceOrders'
-import MarketplaceProducts from './pages/MarketplaceProducts'
-import WebhookMonitor from './pages/WebhookMonitor'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
-
-  // Initialize auto-sync when app starts and user is authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log('🚀 App started - initializing auto-sync...')
-      initializeAutoSync()
-    }
-  }, [isAuthenticated])
 
   return (
     <Router>
       <RealtimeSyncProvider>
         <Routes>
           <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
-          {/* Marketplace callback - accessible without auth */}
-          <Route path="/marketplace/callback" element={<MarketplaceCallback />} />
           
           <Route
             path="/*"
@@ -52,12 +35,6 @@ function App() {
                     {!isAndroid && <Route path="/pos" element={<POS />} />}
                     {/* Remote Scanner hanya di Android */}
                     {isAndroid && <Route path="/scanner" element={<RemoteScanner />} />}
-                    {/* Marketplace - redirect to integration page */}
-                    <Route path="/marketplace" element={<Navigate to="/marketplace/integration" replace />} />
-                    <Route path="/marketplace/integration" element={<MarketplaceIntegration />} />
-                    <Route path="/marketplace/orders" element={<MarketplaceOrders />} />
-                    <Route path="/marketplace/products" element={<MarketplaceProducts />} />
-                    <Route path="/marketplace/webhooks" element={<WebhookMonitor />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/purchases" element={<Purchases />} />
