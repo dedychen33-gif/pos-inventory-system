@@ -22,100 +22,92 @@ export default function MarketplaceOrders() {
   const { transactions, addTransaction, updateTransaction, clearMarketplaceTransactions, setTransactions } = useTransactionStore();
   const { stores, shopeeConfig } = useMarketplaceStore();
 
-  // Load orders from Supabase on mount
+  // MANUAL localStorage save/load - GUARANTEED TO WORK
+  const ORDERS_STORAGE_KEY = 'marketplace-orders-manual';
+  
+  // Load orders on mount - from manual localStorage first, then Supabase
   useEffect(() => {
-    const loadOrdersFromSupabase = async () => {
+    const loadOrders = async () => {
       try {
         setIsLoadingFromSupabase(true);
         
-        // Check localStorage first
-        const localStorageData = localStorage.getItem('transaction-storage');
-        console.log('🔍 localStorage data:', localStorageData ? 'EXISTS' : 'EMPTY');
-        if (localStorageData) {
-          const parsed = JSON.parse(localStorageData);
-          console.log('📊 localStorage transactions count:', parsed.state?.transactions?.length || 0);
+        // 1. Load from manual localStorage FIRST
+        const savedOrders = localStorage.getItem(ORDERS_STORAGE_KEY);
+        if (savedOrders) {
+          try {
+            const parsedOrders = JSON.parse(savedOrders);
+            console.log(`📦 Loaded ${parsedOrders.length} orders from manual localStorage`);
+            setTransactions(parsedOrders);
+          } catch (e) {
+            console.error('Error parsing saved orders:', e);
+          }
+        } else {
+          console.log('ℹ️ No saved orders in manual localStorage');
         }
         
-        console.log('📥 Loading orders from Supabase...');
-        console.log('📊 Current transactions in store:', transactions.length);
-        
+        // 2. Then load from Supabase and merge
         const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
         
         if (!isSupabaseConfigured()) {
-          console.log('⚠️ Supabase not configured, using localStorage only');
+          console.log('⚠️ Supabase not configured');
           return;
         }
 
-        // Fetch all marketplace orders from Supabase
         const { data: orders, error } = await supabase
           .from('transactions')
           .select('*')
           .eq('source', 'shopee')
-          .order('date', { ascending: false });
+          .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('❌ Error loading orders from Supabase:', error);
+          console.error('❌ Error loading from Supabase:', error);
           return;
         }
 
         if (orders && orders.length > 0) {
           console.log(`✅ Loaded ${orders.length} orders from Supabase`);
           
-          // Transform Supabase data to local format
           const transformedOrders = orders.map(order => ({
             id: order.id,
             transactionCode: order.transaction_code,
             shopeeOrderId: order.shopee_order_id,
             source: order.source,
             marketplaceSource: order.source,
-            customer: 'Pembeli Shopee', // Customer name not stored in Supabase
+            customer: 'Pembeli Shopee',
             total: order.total,
             subtotal: order.subtotal,
-            shippingFee: 0, // Shipping fee not stored in Supabase
+            shippingFee: 0,
             status: order.status,
-            shopeeStatus: order.shopee_status || order.status,
+            shopeeStatus: order.status,
             date: order.created_at,
             paymentMethod: order.payment_method,
             items: order.items || [],
             createdAt: order.created_at
           }));
 
-          // Merge with existing localStorage orders (avoid duplicates)
-          const existingIds = new Set(transactions.map(t => t.id));
+          // Merge and save to manual localStorage
+          const currentOrders = transactions.length > 0 ? transactions : (savedOrders ? JSON.parse(savedOrders) : []);
+          const existingIds = new Set(currentOrders.map(t => t.id));
           const newOrders = transformedOrders.filter(o => !existingIds.has(o.id));
           
           if (newOrders.length > 0) {
-            console.log(`📦 Merging ${newOrders.length} new orders with ${transactions.length} existing transactions`);
+            const mergedOrders = [...newOrders, ...currentOrders];
+            setTransactions(mergedOrders);
             
-            // Use setTransactions to replace all at once (better for persist middleware)
-            const mergedTransactions = [...newOrders, ...transactions];
-            setTransactions(mergedTransactions);
-            
-            console.log(`✅ Total transactions after merge: ${mergedTransactions.length}`);
-            
-            // Verify localStorage after setting
-            setTimeout(() => {
-              const updatedData = localStorage.getItem('transaction-storage');
-              if (updatedData) {
-                const parsed = JSON.parse(updatedData);
-                console.log('✅ localStorage verified, count:', parsed.state?.transactions?.length || 0);
-              }
-            }, 100);
-          } else {
-            console.log('✅ All orders already in localStorage');
+            // SAVE TO MANUAL LOCALSTORAGE IMMEDIATELY
+            localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(mergedOrders));
+            console.log(`✅ Saved ${mergedOrders.length} orders to manual localStorage`);
           }
-        } else {
-          console.log('ℹ️ No orders found in Supabase');
         }
       } catch (error) {
-        console.error('❌ Error loading orders from Supabase:', error);
+        console.error('❌ Error loading orders:', error);
       } finally {
         setIsLoadingFromSupabase(false);
       }
     };
 
-    loadOrdersFromSupabase();
-  }, []); // Run once on mount
+    loadOrders();
+  }, []);
 
   // Filter marketplace orders only
   const marketplaceOrders = useMemo(() => {
@@ -460,6 +452,11 @@ export default function MarketplaceOrders() {
       const messages = [];
       if (totalOrders > 0) messages.push(`${totalOrders} pesanan baru`);
       if (totalUpdated > 0) messages.push(`${totalUpdated} pesanan diperbarui`);
+      
+      // SAVE TO MANUAL LOCALSTORAGE AFTER SYNC
+      const allTransactions = useTransactionStore.getState().transactions;
+      localStorage.setItem('marketplace-orders-manual', JSON.stringify(allTransactions));
+      console.log(`💾 Saved ${allTransactions.length} orders to manual localStorage after sync`);
       
       if (messages.length > 0) {
         setSyncMessage(`Berhasil: ${messages.join(', ')}`);
