@@ -7,23 +7,30 @@ import BarcodeScanner from '../components/BarcodeScanner'
 import BarcodeGenerator, { BarcodeImage } from '../components/BarcodeGenerator'
 import { marketplaceService } from '../services/marketplaceApi'
 
+import { useMarketplaceStore } from '../store/marketplaceStore'
+
 // Detect if we're on production or local
 const isProduction = window.location.hostname !== 'localhost';
 const API_BASE = isProduction ? '' : 'http://localhost:3001';
 
-// Update product to Shopee
-async function updateProductToShopee(product, updates) {
-  const partnerId = localStorage.getItem('shopee_partner_id');
-  const partnerKey = localStorage.getItem('shopee_partner_key');
-  const shopId = localStorage.getItem('shopee_shop_id');
-  const accessToken = localStorage.getItem('shopee_access_token');
+// Update product to Shopee - uses store from marketplaceStore
+async function updateProductToShopee(product, updates, stores) {
+  // Find Shopee store with credentials
+  const shopeeStore = stores?.find(s => s.platform === 'shopee' && s.isConnected);
+  
+  if (!shopeeStore) {
+    return { success: false, error: 'Shopee store not connected. Silakan hubungkan toko Shopee di halaman Integrasi Marketplace.' };
+  }
+  
+  const { partnerId, partnerKey, accessToken } = shopeeStore.credentials || {};
+  const shopId = shopeeStore.shopId;
   
   if (!partnerId || !partnerKey || !shopId || !accessToken) {
-    return { success: false, error: 'Shopee not configured' };
+    return { success: false, error: 'Kredensial Shopee tidak lengkap. Silakan re-connect di halaman Integrasi Marketplace.' };
   }
   
   if (!product.shopeeItemId) {
-    return { success: false, error: 'Product not from Shopee' };
+    return { success: false, error: 'Produk ini tidak memiliki Shopee Item ID' };
   }
   
   try {
@@ -85,6 +92,7 @@ export default function Products() {
   
   const { products, categories, addProduct, updateProduct, deleteProduct, syncLocalToCloud, isSyncing } = useProductStore()
   const { user } = useAuthStore()
+  const { stores } = useMarketplaceStore()
 
   // Handle sync to cloud
   const handleSyncToCloud = async () => {
@@ -109,7 +117,7 @@ export default function Products() {
     
     setIsSyncingToShopee(true)
     try {
-      const result = await updateProductToShopee(syncingProduct, updates)
+      const result = await updateProductToShopee(syncingProduct, updates, stores)
       
       if (result.success) {
         alert('✅ Berhasil update ke Shopee!\n\n' + 
