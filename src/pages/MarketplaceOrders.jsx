@@ -285,6 +285,9 @@ export default function MarketplaceOrders() {
                   shippingFee: order.actual_shipping_fee || order.estimated_shipping_fee || 0,
                   status: statusMap[order.order_status] || order.order_status?.toLowerCase() || 'pending',
                   shopeeStatus: order.order_status,
+                  // New Shopee pending status fields
+                  pendingTerms: order.pending_terms || [],
+                  pendingDescription: order.pending_description || [],
                   date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
                   paymentMethod: order.payment_method || 'Shopee',
                   items: order.item_list?.map(item => ({

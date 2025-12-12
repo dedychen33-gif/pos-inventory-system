@@ -120,13 +120,61 @@ export default function Settings() {
           throw new Error('Format backup tidak valid')
         }
 
-        // Restore to localStorage
-        localStorage.setItem('product-storage', JSON.stringify({ state: { products: backupData.data.products, categories: backupData.data.products?.[0]?.category ? [...new Set(backupData.data.products.map(p => p.category))] : [] } }))
-        localStorage.setItem('customer-storage', JSON.stringify({ state: { customers: backupData.data.customers } }))
-        localStorage.setItem('transaction-storage', JSON.stringify({ state: { transactions: backupData.data.transactions } }))
-        localStorage.setItem('purchase-storage', JSON.stringify({ state: { purchases: backupData.data.purchases, suppliers: backupData.data.suppliers } }))
-        localStorage.setItem('settings-storage', JSON.stringify({ state: { storeInfo: backupData.data.settings } }))
-        localStorage.setItem('auth-storage', JSON.stringify({ state: { users: backupData.data.users, isAuthenticated: true } }))
+        // Extract unique categories from products
+        const categories = backupData.data.products?.length > 0 
+          ? [...new Set(backupData.data.products.map(p => p.category).filter(Boolean))]
+          : ['Makanan', 'Minuman', 'Snack', 'Sembako', 'Elektronik', 'Alat Tulis', 'Paket Bundling']
+
+        // Restore to localStorage with complete structure
+        localStorage.setItem('product-storage', JSON.stringify({ 
+          state: { 
+            products: backupData.data.products || [], 
+            categories: categories,
+            units: ['pcs', 'kg', 'box', 'pack', 'lusin', 'kodi', 'gross', 'paket'],
+            stockHistory: [],
+            isOnline: false,
+            isSyncing: false
+          } 
+        }))
+        
+        localStorage.setItem('customer-storage', JSON.stringify({ 
+          state: { 
+            customers: backupData.data.customers || [] 
+          } 
+        }))
+        
+        localStorage.setItem('transaction-storage', JSON.stringify({ 
+          state: { 
+            transactions: backupData.data.transactions || [],
+            isOnline: false
+          } 
+        }))
+        
+        localStorage.setItem('purchase-storage', JSON.stringify({ 
+          state: { 
+            purchases: backupData.data.purchases || [], 
+            suppliers: backupData.data.suppliers || [] 
+          } 
+        }))
+        
+        localStorage.setItem('settings-storage', JSON.stringify({ 
+          state: { 
+            storeInfo: backupData.data.settings || {},
+            stockSettings: { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 }
+          } 
+        }))
+        
+        // Find admin user or first user to set as current user
+        const users = backupData.data.users || []
+        const adminUser = users.find(u => u.role === 'admin' && u.isActive) || users.find(u => u.isActive) || users[0]
+        
+        localStorage.setItem('auth-storage', JSON.stringify({ 
+          state: { 
+            users: users, 
+            user: adminUser || null,
+            isAuthenticated: !!adminUser
+          } 
+        }))
         
         alert('Restore database berhasil! Halaman akan di-refresh.')
         window.location.reload()
