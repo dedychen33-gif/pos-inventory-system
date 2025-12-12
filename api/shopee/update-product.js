@@ -280,7 +280,15 @@ export default async function handler(req, res) {
       item_id,
       model_id,
       action,
-      updates: { name, price, stock, sku }
+      updates: { name, price, stock, sku },
+      credentials: {
+        has_partner_id: !!partner_id,
+        has_partner_key: !!partner_key,
+        has_shop_id: !!shop_id,
+        has_access_token: !!access_token,
+        access_token_length: access_token?.length,
+        access_token_preview: access_token ? `${access_token.substring(0, 10)}...` : 'none'
+      }
     });
     
     if (!partner_id || !partner_key || !shop_id || !access_token || !item_id) {
