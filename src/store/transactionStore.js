@@ -218,7 +218,7 @@ function transformTransaction(row) {
     id: row.id,
     transactionCode: row.transaction_code,
     customerId: row.customer_id,
-    customer: row.customer_name,
+    customer: row.customer_id ? 'Customer' : 'Pembeli',
     items: row.items || [],
     subtotal: parseFloat(row.subtotal) || 0,
     discount: parseFloat(row.discount) || 0,
@@ -237,6 +237,6 @@ function transformTransaction(row) {
     shopeeOrderId: row.shopee_order_id,
     shopeeStatus: row.shopee_status,
     marketplaceSource: row.source,
-    shippingFee: parseFloat(row.shipping_fee) || 0
+    shippingFee: 0
   }
 }

@@ -68,13 +68,13 @@ export default function MarketplaceOrders() {
             shopeeOrderId: order.shopee_order_id,
             source: order.source,
             marketplaceSource: order.source,
-            customer: order.customer_name,
+            customer: 'Pembeli Shopee', // Customer name not stored in Supabase
             total: order.total,
             subtotal: order.subtotal,
-            shippingFee: order.shipping_fee,
+            shippingFee: 0, // Shipping fee not stored in Supabase
             status: order.status,
-            shopeeStatus: order.shopee_status,
-            date: order.date,
+            shopeeStatus: order.shopee_status || order.status,
+            date: order.created_at,
             paymentMethod: order.payment_method,
             items: order.items || [],
             createdAt: order.created_at
@@ -319,15 +319,11 @@ export default function MarketplaceOrders() {
                     transaction_code: orderData.transactionCode,
                     shopee_order_id: orderData.shopeeOrderId,
                     source: orderData.source,
-                    customer_name: typeof orderData.customer === 'string' ? orderData.customer : orderData.customer?.name,
                     total: orderData.total,
                     subtotal: orderData.subtotal,
-                    shipping_fee: orderData.shippingFee,
                     status: orderData.status,
-                    shopee_status: orderData.shopeeStatus,
-                    date: orderData.date,
-                    payment_method: orderData.paymentMethod,
                     items: orderData.items,
+                    payment_method: orderData.paymentMethod,
                     created_at: orderData.createdAt
                   };
                   
