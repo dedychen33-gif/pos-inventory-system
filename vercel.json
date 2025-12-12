@@ -13,10 +13,6 @@
     {
       "path": "/api/shopee/auto-refresh",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/shopee/sync-processor",
-      "schedule": "*/5 * * * *"
     }
   ],
   "github": {
