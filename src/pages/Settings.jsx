@@ -125,7 +125,7 @@ export default function Settings() {
           ? [...new Set(backupData.data.products.map(p => p.category).filter(Boolean))]
           : ['Makanan', 'Minuman', 'Snack', 'Sembako', 'Elektronik', 'Alat Tulis', 'Paket Bundling']
 
-        // Restore to localStorage with complete structure
+        // Restore to localStorage with correct Zustand persist format
         localStorage.setItem('product-storage', JSON.stringify({ 
           state: { 
             products: backupData.data.products || [], 
@@ -134,34 +134,39 @@ export default function Settings() {
             stockHistory: [],
             isOnline: false,
             isSyncing: false
-          } 
+          },
+          version: 0
         }))
         
         localStorage.setItem('customer-storage', JSON.stringify({ 
           state: { 
             customers: backupData.data.customers || [] 
-          } 
+          },
+          version: 0
         }))
         
         localStorage.setItem('transaction-storage', JSON.stringify({ 
           state: { 
             transactions: backupData.data.transactions || [],
             isOnline: false
-          } 
+          },
+          version: 0
         }))
         
         localStorage.setItem('purchase-storage', JSON.stringify({ 
           state: { 
             purchases: backupData.data.purchases || [], 
             suppliers: backupData.data.suppliers || [] 
-          } 
+          },
+          version: 0
         }))
         
         localStorage.setItem('settings-storage', JSON.stringify({ 
           state: { 
             storeInfo: backupData.data.settings || {},
             stockSettings: { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 }
-          } 
+          },
+          version: 0
         }))
         
         // Find admin user or first user to set as current user
@@ -173,7 +178,8 @@ export default function Settings() {
             users: users, 
             user: adminUser || null,
             isAuthenticated: !!adminUser
-          } 
+          },
+          version: 0
         }))
         
         alert('Restore database berhasil! Halaman akan di-refresh.')
