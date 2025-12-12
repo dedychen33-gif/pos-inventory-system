@@ -20,6 +20,7 @@ import MarketplaceCallback from './pages/MarketplaceCallback'
 import MarketplaceIntegration from './pages/MarketplaceIntegration'
 import MarketplaceOrders from './pages/MarketplaceOrders'
 import MarketplaceProducts from './pages/MarketplaceProducts'
+import WebhookMonitor from './pages/WebhookMonitor'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -56,6 +57,7 @@ function App() {
                     <Route path="/marketplace/integration" element={<MarketplaceIntegration />} />
                     <Route path="/marketplace/orders" element={<MarketplaceOrders />} />
                     <Route path="/marketplace/products" element={<MarketplaceProducts />} />
+                    <Route path="/marketplace/webhooks" element={<WebhookMonitor />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/purchases" element={<Purchases />} />
