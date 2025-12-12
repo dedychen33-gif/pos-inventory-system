@@ -1098,27 +1098,6 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
-              <div className="flex flex-col items-center gap-4">
-                <div className="bg-blue-100 p-4 rounded-full">
-                  <RefreshCw className="text-blue-600" size={32} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-lg mb-2 text-blue-700">Sync Shopee Credentials</h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Simpan credentials Shopee ke Supabase untuk update produk
-                  </p>
-                  <button 
-                    onClick={handleSyncShopeeCredentials}
-                    className="btn btn-primary inline-flex items-center gap-2"
-                  >
-                    <Cloud size={20} />
-                    Sync ke Supabase
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div className="border-2 border-dashed border-red-300 rounded-lg p-6 text-center hover:border-red-500 transition-colors">
               <div className="flex flex-col items-center gap-4">
                 <div className="bg-red-100 p-4 rounded-full">
