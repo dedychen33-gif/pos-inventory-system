@@ -1499,26 +1499,6 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
           </div>
         )}
         
-        {/* Marketplace Sync Option - for all marketplace products */}
-        {product && ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(product.source) && (
-          <div className="mx-6 mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={syncToMarketplace}
-                onChange={(e) => setSyncToMarketplace(e.target.checked)}
-                className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <div className="flex items-center gap-2">
-                <Upload size={18} className="text-blue-600" />
-                <span className="font-medium text-blue-800">Update juga ke {product.source.charAt(0).toUpperCase() + product.source.slice(1)}</span>
-              </div>
-            </label>
-            <p className="text-xs text-blue-600 mt-2 ml-8">
-              Nama, harga, stok, dan SKU akan diperbarui di marketplace saat menyimpan
-            </p>
-          </div>
-        )}
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* SKU dan Barcode */}
