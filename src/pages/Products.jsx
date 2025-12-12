@@ -79,6 +79,9 @@ export default function Products() {
   const [isImporting, setIsImporting] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
+  const [showSyncShopeeModal, setShowSyncShopeeModal] = useState(false)
+  const [syncingProduct, setSyncingProduct] = useState(null)
+  const [isSyncingToShopee, setIsSyncingToShopee] = useState(false)
   
   const { products, categories, addProduct, updateProduct, deleteProduct, syncLocalToCloud, isSyncing } = useProductStore()
   const { user } = useAuthStore()
@@ -92,6 +95,36 @@ export default function Products() {
       } else {
         alert('Gagal sync: ' + result.error)
       }
+    }
+  }
+
+  // Handle sync to Shopee
+  const handleSyncToShopee = (product) => {
+    setSyncingProduct(product)
+    setShowSyncShopeeModal(true)
+  }
+
+  const handleConfirmSyncToShopee = async (updates) => {
+    if (!syncingProduct) return
+    
+    setIsSyncingToShopee(true)
+    try {
+      const result = await updateProductToShopee(syncingProduct, updates)
+      
+      if (result.success) {
+        alert('✅ Berhasil update ke Shopee!\n\n' + 
+          (updates.sku ? `SKU: ${updates.sku}\n` : '') +
+          (updates.price ? `Harga: Rp ${updates.price.toLocaleString('id-ID')}\n` : '') +
+          (updates.stock !== undefined ? `Stok: ${updates.stock}` : ''))
+        setShowSyncShopeeModal(false)
+        setSyncingProduct(null)
+      } else {
+        alert('❌ Gagal update ke Shopee:\n' + (result.error || 'Unknown error'))
+      }
+    } catch (error) {
+      alert('❌ Error: ' + error.message)
+    } finally {
+      setIsSyncingToShopee(false)
     }
   }
 
@@ -763,6 +796,16 @@ export default function Products() {
                             <Trash2 size={14} />
                           </button>
                         )}
+                        {/* Sync to Shopee button */}
+                        {product.source === 'shopee' && !product.isGrouped && (
+                          <button
+                            onClick={() => handleSyncToShopee(product)}
+                            className="text-green-600 hover:text-green-700 p-1"
+                            title="Update ke Shopee"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                        )}
                         {/* Link to Shopee for Shopee products */}
                         {product.source === 'shopee' && (
                           <a
@@ -864,6 +907,16 @@ export default function Products() {
                           >
                             <Edit size={14} />
                           </button>
+                          {/* Sync variant to Shopee */}
+                          {variant.source === 'shopee' && (
+                            <button
+                              onClick={() => handleSyncToShopee(variant)}
+                              className="text-green-500 hover:text-green-600 p-1"
+                              title="Update ke Shopee"
+                            >
+                              <RefreshCw size={14} />
+                            </button>
+                          )}
                           {variant.source === 'shopee' && (
                             <a
                               href={`https://shopee.co.id/product/${variant.shopeeItemId}`}
@@ -996,6 +1049,18 @@ export default function Products() {
       {showUnitModal && (
         <ManageUnitsModal
           onClose={() => setShowUnitModal(false)}
+        />
+      )}
+
+      {showSyncShopeeModal && syncingProduct && (
+        <SyncToShopeeModal
+          product={syncingProduct}
+          onClose={() => {
+            setShowSyncShopeeModal(false)
+            setSyncingProduct(null)
+          }}
+          onSync={handleConfirmSyncToShopee}
+          isSyncing={isSyncingToShopee}
         />
       )}
     </div>
@@ -2387,6 +2452,172 @@ function AddVariantModal({ onClose, onAdd, productName }) {
             <button type="submit" className="btn btn-primary flex-1">
               <Plus size={20} />
               Tambah Varian
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Sync to Shopee Modal
+function SyncToShopeeModal({ product, onClose, onSync, isSyncing }) {
+  const [sku, setSku] = useState(product?.sku || '')
+  const [price, setPrice] = useState(product?.price || 0)
+  const [stock, setStock] = useState(product?.stock || 0)
+  const [syncSku, setSyncSku] = useState(false)
+  const [syncPrice, setSyncPrice] = useState(true)
+  const [syncStock, setSyncStock] = useState(true)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const updates = {}
+    if (syncSku && sku) updates.sku = sku
+    if (syncPrice) updates.price = parseFloat(price)
+    if (syncStock) updates.stock = parseInt(stock)
+    onSync(updates)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <Store className="text-orange-600" size={20} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Update ke Shopee</h2>
+                <p className="text-sm text-gray-500">Sync data produk ke Shopee</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Product Info */}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <p className="font-medium text-gray-900 line-clamp-2">{product?.name}</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Item ID: {product?.shopeeItemId}
+              {product?.shopeeModelId && ` | Model ID: ${product?.shopeeModelId}`}
+            </p>
+          </div>
+
+          {/* SKU */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="syncSku"
+                checked={syncSku}
+                onChange={(e) => setSyncSku(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="syncSku" className="text-sm font-medium">Update SKU</label>
+            </div>
+            {syncSku && (
+              <input
+                type="text"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                className="input w-full"
+                placeholder="SKU baru"
+              />
+            )}
+          </div>
+
+          {/* Price */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="syncPrice"
+                checked={syncPrice}
+                onChange={(e) => setSyncPrice(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="syncPrice" className="text-sm font-medium">Update Harga</label>
+            </div>
+            {syncPrice && (
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Rp</span>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="input w-full pl-10"
+                  placeholder="0"
+                  min="0"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Stock */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="syncStock"
+                checked={syncStock}
+                onChange={(e) => setSyncStock(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="syncStock" className="text-sm font-medium">Update Stok</label>
+            </div>
+            {syncStock && (
+              <input
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="input w-full"
+                placeholder="0"
+                min="0"
+              />
+            )}
+          </div>
+
+          {/* Warning */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+            <p className="font-medium">⚠️ Perhatian:</p>
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li>SKU harus unik di Shopee</li>
+              <li>Harga tidak boleh di bawah minimum Shopee</li>
+              <li>Perubahan akan langsung diterapkan</li>
+            </ul>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn btn-secondary flex-1"
+              disabled={isSyncing}
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="btn bg-orange-500 hover:bg-orange-600 text-white flex-1 flex items-center justify-center gap-2"
+              disabled={isSyncing || (!syncSku && !syncPrice && !syncStock)}
+            >
+              {isSyncing ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={18} />
+                  Update ke Shopee
+                </>
+              )}
             </button>
           </div>
         </form>
