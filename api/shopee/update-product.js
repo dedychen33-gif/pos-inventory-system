@@ -300,11 +300,20 @@ export default async function handler(req, res) {
 
     const results = {
       price: null,
-      stock: null
+      stock: null,
+      sku: null
     };
 
-    // Only update Price and Stock (most reliable operations)
-    // Skip Name and SKU updates as they have strict validation rules
+    // Update SKU
+    if (sku !== undefined && sku !== null && sku !== '') {
+      try {
+        results.sku = await updateItemSku(partner_id, partner_key, shop_id, access_token, item_id, model_id, sku);
+        console.log('✅ SKU update result:', results.sku);
+      } catch (error) {
+        console.error('❌ SKU update error:', error);
+        results.sku = { error: error.message };
+      }
+    }
     
     // Update Price
     if (price !== undefined && price !== null) {
@@ -338,6 +347,10 @@ export default async function handler(req, res) {
 
     // Check for errors
     const errors = [];
+    if (results.sku?.error) {
+      console.error('SKU update error:', results.sku);
+      errors.push(`SKU: ${results.sku.message || results.sku.error}`);
+    }
     if (results.price?.error) {
       console.error('Price update error:', results.price);
       errors.push(`Price: ${results.price.message || results.price.error}`);
@@ -356,6 +369,7 @@ export default async function handler(req, res) {
         error: errors.join(', '),
         results,
         details: {
+          sku_response: results.sku,
           price_response: results.price,
           stock_response: results.stock,
           message: 'Check Shopee API response for details'
