@@ -29,6 +29,15 @@ export const useProductStore = create(
           return
         }
 
+        // Check if data was just restored from backup - don't overwrite with Supabase data
+        const justRestored = localStorage.getItem('just-restored')
+        if (justRestored === 'true') {
+          console.log('🔄 Data just restored from backup - skipping Supabase fetch to preserve local data')
+          localStorage.removeItem('just-restored')
+          set({ isOnline: true })
+          return
+        }
+
         try {
           // Fetch initial data
           await get().fetchProducts()

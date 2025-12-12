@@ -182,6 +182,9 @@ export default function Settings() {
           version: 0
         }))
         
+        // Set flag to prevent Supabase from overwriting restored data
+        localStorage.setItem('just-restored', 'true')
+        
         alert('Restore database berhasil! Halaman akan di-refresh.')
         window.location.reload()
       } catch (error) {
