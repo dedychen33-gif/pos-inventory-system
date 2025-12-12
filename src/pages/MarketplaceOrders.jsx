@@ -163,62 +163,124 @@ export default function MarketplaceOrders() {
           }
           
           if (result.success && result.data && result.data.length > 0) {
+            console.log('🔄 BigSeller-style sync: Shopee Orders → Supabase → localStorage');
+            
+            // Import Supabase
+            const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
+            
             // Process each order
             for (const order of result.data) {
-              // Get current transactions (fresh state)
-              const currentTransactions = useTransactionStore.getState().transactions;
-              const existingOrder = currentTransactions.find(t => 
-                t.id === order.order_sn || 
-                t.transactionCode === order.order_sn ||
-                t.shopeeOrderId === order.order_sn
-              );
-              
-              // Map Shopee order status to local status
-              const statusMap = {
-                'UNPAID': 'pending',
-                'READY_TO_SHIP': 'ready_to_ship',
-                'PROCESSED': 'processing',
-                'SHIPPED': 'shipped',
-                'COMPLETED': 'completed',
-                'IN_CANCEL': 'cancelled',
-                'CANCELLED': 'cancelled',
-                'INVOICE_PENDING': 'pending'
-              };
-              
-              const orderData = {
-                id: order.order_sn,
-                transactionCode: order.order_sn, // Use original Shopee order_sn, no TRX prefix
-                shopeeOrderId: order.order_sn,
-                source: 'shopee',
-                marketplaceSource: 'shopee',
-                marketplaceStoreId: store.id,
-                storeName: store.shopName,
-                customer: order.buyer_username || order.buyer_user_id || 'Pembeli Shopee',
-                // Parse total amount - Shopee returns in cents for some regions
-                total: order.total_amount || order.escrow_amount || order.actual_shipping_fee || 0,
-                subtotal: order.total_amount || 0,
-                shippingFee: order.actual_shipping_fee || order.estimated_shipping_fee || 0,
-                status: statusMap[order.order_status] || order.order_status?.toLowerCase() || 'pending',
-                shopeeStatus: order.order_status,
-                date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
-                paymentMethod: order.payment_method || 'Shopee',
-                items: order.item_list?.map(item => ({
-                  name: item.item_name,
-                  sku: item.item_sku || item.model_sku,
-                  quantity: item.model_quantity_purchased || 1,
-                  price: item.model_discounted_price || item.model_original_price || 0,
-                  image: item.image_info?.image_url || ''
-                })) || [],
-                createdAt: new Date().toISOString()
-              };
-              
-              if (!existingOrder) {
-                addTransaction(orderData);
-                totalOrders++;
-              } else {
-                // Update existing order with fresh data
-                updateTransaction(existingOrder.id, orderData);
-                totalUpdated++;
+              try {
+                // Map Shopee order status to local status
+                const statusMap = {
+                  'UNPAID': 'pending',
+                  'READY_TO_SHIP': 'ready_to_ship',
+                  'PROCESSED': 'processing',
+                  'SHIPPED': 'shipped',
+                  'COMPLETED': 'completed',
+                  'IN_CANCEL': 'cancelled',
+                  'CANCELLED': 'cancelled',
+                  'INVOICE_PENDING': 'pending'
+                };
+                
+                const orderData = {
+                  id: order.order_sn,
+                  transactionCode: order.order_sn,
+                  shopeeOrderId: order.order_sn,
+                  source: 'shopee',
+                  marketplaceSource: 'shopee',
+                  marketplaceStoreId: store.id,
+                  storeName: store.shopName,
+                  customer: order.buyer_username || order.buyer_user_id || 'Pembeli Shopee',
+                  total: order.total_amount || order.escrow_amount || 0,
+                  subtotal: order.total_amount || 0,
+                  shippingFee: order.actual_shipping_fee || order.estimated_shipping_fee || 0,
+                  status: statusMap[order.order_status] || order.order_status?.toLowerCase() || 'pending',
+                  shopeeStatus: order.order_status,
+                  date: order.create_time ? new Date(order.create_time * 1000).toISOString() : new Date().toISOString(),
+                  paymentMethod: order.payment_method || 'Shopee',
+                  items: order.item_list?.map(item => ({
+                    name: item.item_name,
+                    sku: item.item_sku || item.model_sku,
+                    quantity: item.model_quantity_purchased || 1,
+                    price: item.model_discounted_price || item.model_original_price || 0,
+                    image: item.image_info?.image_url || ''
+                  })) || [],
+                  createdAt: new Date().toISOString()
+                };
+                
+                // 1. Save to Supabase first (central hub)
+                if (isSupabaseConfigured()) {
+                  // Check if order exists in Supabase
+                  const { data: existing } = await supabase
+                    .from('transactions')
+                    .select('id')
+                    .eq('shopee_order_id', order.order_sn)
+                    .maybeSingle();
+                  
+                  const dbOrderData = {
+                    id: orderData.id,
+                    transaction_code: orderData.transactionCode,
+                    shopee_order_id: orderData.shopeeOrderId,
+                    source: orderData.source,
+                    customer_name: typeof orderData.customer === 'string' ? orderData.customer : orderData.customer?.name,
+                    total: orderData.total,
+                    subtotal: orderData.subtotal,
+                    shipping_fee: orderData.shippingFee,
+                    status: orderData.status,
+                    shopee_status: orderData.shopeeStatus,
+                    date: orderData.date,
+                    payment_method: orderData.paymentMethod,
+                    items: orderData.items,
+                    created_at: orderData.createdAt
+                  };
+                  
+                  if (existing) {
+                    // Update existing order in Supabase
+                    const { error } = await supabase
+                      .from('transactions')
+                      .update({
+                        ...dbOrderData,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existing.id);
+                    
+                    if (!error) {
+                      totalUpdated++;
+                      console.log(`✅ Updated order in Supabase: ${order.order_sn}`);
+                    } else {
+                      console.error(`❌ Supabase update error for order ${order.order_sn}:`, error);
+                    }
+                  } else {
+                    // Insert new order to Supabase
+                    const { error } = await supabase
+                      .from('transactions')
+                      .insert(dbOrderData);
+                    
+                    if (!error) {
+                      totalOrders++;
+                      console.log(`✅ Added order to Supabase: ${order.order_sn}`);
+                    } else {
+                      console.error(`❌ Supabase insert error for order ${order.order_sn}:`, error);
+                    }
+                  }
+                }
+                
+                // 2. Update localStorage (cache) - regardless of Supabase status
+                const currentTransactions = useTransactionStore.getState().transactions;
+                const existingOrder = currentTransactions.find(t => 
+                  t.id === order.order_sn || 
+                  t.transactionCode === order.order_sn ||
+                  t.shopeeOrderId === order.order_sn
+                );
+                
+                if (!existingOrder) {
+                  addTransaction(orderData);
+                } else {
+                  updateTransaction(existingOrder.id, orderData);
+                }
+              } catch (orderError) {
+                console.error(`Error processing order ${order.order_sn}:`, orderError);
               }
             }
           }
