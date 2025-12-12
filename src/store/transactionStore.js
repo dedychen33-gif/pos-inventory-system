@@ -54,14 +54,18 @@ export const useTransactionStore = create(
       },
       
       addTransaction: async (transaction) => {
-        const transactionCode = `TRX${Date.now()}`
+        // For marketplace orders, preserve existing ID and transaction code
+        const isMarketplaceOrder = transaction.source && transaction.source !== 'pos';
+        const transactionCode = isMarketplaceOrder ? transaction.transactionCode : `TRX${Date.now()}`;
+        const transactionId = isMarketplaceOrder ? transaction.id : (crypto.randomUUID ? crypto.randomUUID() : transactionCode);
+        
         const newTransaction = {
           ...transaction,
-          id: crypto.randomUUID ? crypto.randomUUID() : transactionCode,
+          id: transactionId,
           transactionCode,
-          date: new Date().toISOString(),
-          status: 'completed',
-          source: transaction.source || 'pos' // 'pos', 'shopee', 'lazada', 'tokopedia', 'tiktok'
+          date: transaction.date || new Date().toISOString(),
+          status: transaction.status || 'completed',
+          source: transaction.source || 'pos'
         }
         
         set((state) => ({
@@ -214,6 +218,7 @@ function transformTransaction(row) {
     id: row.id,
     transactionCode: row.transaction_code,
     customerId: row.customer_id,
+    customer: row.customer_name,
     items: row.items || [],
     subtotal: parseFloat(row.subtotal) || 0,
     discount: parseFloat(row.discount) || 0,
@@ -227,6 +232,11 @@ function transformTransaction(row) {
     voidDate: row.void_date,
     cashierName: row.cashier_name,
     source: row.source || 'pos',
-    date: row.created_at
+    date: row.created_at || row.date,
+    // Marketplace-specific fields
+    shopeeOrderId: row.shopee_order_id,
+    shopeeStatus: row.shopee_status,
+    marketplaceSource: row.source,
+    shippingFee: parseFloat(row.shipping_fee) || 0
   }
 }
