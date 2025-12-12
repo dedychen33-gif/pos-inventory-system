@@ -636,10 +636,6 @@ export default function Settings() {
               <p className="text-2xl font-bold text-purple-700">{users.filter(u => u.role === 'admin').length}</p>
               <p className="text-xs text-purple-600">Admin</p>
             </div>
-            <div className="bg-orange-50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold text-orange-700">{users.filter(u => u.marketplaceCredentials?.shopee?.isConnected).length}</p>
-              <p className="text-xs text-orange-600">Terhubung Shopee</p>
-            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -649,7 +645,6 @@ export default function Settings() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Permissions</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Marketplace</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
                 </tr>
@@ -693,16 +688,6 @@ export default function Settings() {
                           <span className="badge badge-secondary text-xs">+{user.permissions.length - 3}</span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      {user.marketplaceCredentials?.shopee?.isConnected ? (
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          <span className="text-sm text-green-700">Shopee</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`badge ${user.isActive !== false ? 'badge-success' : 'badge-danger'}`}>
