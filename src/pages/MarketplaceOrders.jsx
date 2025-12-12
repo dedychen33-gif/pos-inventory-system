@@ -619,7 +619,7 @@ export default function MarketplaceOrders() {
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-gray-900 select-text cursor-text">
                           {order.shopeeOrderId || order.transactionCode || order.id}
                         </p>
                         {order.source === 'shopee' && order.shopeeOrderId && (
@@ -636,7 +636,7 @@ export default function MarketplaceOrders() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-600 select-text cursor-text">
                         {new Date(order.date).toLocaleDateString('id-ID')}
                       </p>
                     </td>
@@ -644,7 +644,7 @@ export default function MarketplaceOrders() {
                       {getPlatformBadge(order.source)}
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-gray-900 select-text cursor-text">
                         {typeof order.customer === 'string' ? order.customer : (order.customer?.name || order.buyerUsername || '-')}
                       </p>
                     </td>
@@ -653,7 +653,7 @@ export default function MarketplaceOrders() {
                         {order.items && order.items.length > 0 ? (
                           <div className="space-y-1">
                             {order.items.slice(0, 2).map((item, idx) => (
-                              <div key={idx} className="text-gray-700">
+                              <div key={idx} className="text-gray-700 select-text cursor-text">
                                 <span className="font-medium">{item.name || item.item_name || '-'}</span>
                                 <span className="text-gray-500 ml-1">
                                   x{item.quantity || item.model_quantity_purchased || 1}
@@ -675,7 +675,7 @@ export default function MarketplaceOrders() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="font-medium">
+                      <span className="font-medium select-text cursor-text">
                         Rp {(order.total || 0).toLocaleString('id-ID')}
                       </span>
                     </td>
