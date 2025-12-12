@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, Search, ShoppingCart, RefreshCw, Package, Store,
@@ -17,9 +17,81 @@ export default function MarketplaceOrders() {
   const [perPage, setPerPage] = useState(20);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [isLoadingFromSupabase, setIsLoadingFromSupabase] = useState(false);
 
-  const { transactions, addTransaction, updateTransaction, clearMarketplaceTransactions } = useTransactionStore();
+  const { transactions, addTransaction, updateTransaction, clearMarketplaceTransactions, setTransactions } = useTransactionStore();
   const { stores, shopeeConfig } = useMarketplaceStore();
+
+  // Load orders from Supabase on mount
+  useEffect(() => {
+    const loadOrdersFromSupabase = async () => {
+      try {
+        setIsLoadingFromSupabase(true);
+        console.log('📥 Loading orders from Supabase...');
+        
+        const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
+        
+        if (!isSupabaseConfigured()) {
+          console.log('⚠️ Supabase not configured, using localStorage only');
+          return;
+        }
+
+        // Fetch all marketplace orders from Supabase
+        const { data: orders, error } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('source', 'shopee')
+          .order('date', { ascending: false });
+
+        if (error) {
+          console.error('❌ Error loading orders from Supabase:', error);
+          return;
+        }
+
+        if (orders && orders.length > 0) {
+          console.log(`✅ Loaded ${orders.length} orders from Supabase`);
+          
+          // Transform Supabase data to local format
+          const transformedOrders = orders.map(order => ({
+            id: order.id,
+            transactionCode: order.transaction_code,
+            shopeeOrderId: order.shopee_order_id,
+            source: order.source,
+            marketplaceSource: order.source,
+            customer: order.customer_name,
+            total: order.total,
+            subtotal: order.subtotal,
+            shippingFee: order.shipping_fee,
+            status: order.status,
+            shopeeStatus: order.shopee_status,
+            date: order.date,
+            paymentMethod: order.payment_method,
+            items: order.items || [],
+            createdAt: order.created_at
+          }));
+
+          // Merge with existing localStorage orders (avoid duplicates)
+          const existingIds = new Set(transactions.map(t => t.id));
+          const newOrders = transformedOrders.filter(o => !existingIds.has(o.id));
+          
+          if (newOrders.length > 0) {
+            console.log(`📦 Adding ${newOrders.length} new orders to localStorage`);
+            newOrders.forEach(order => addTransaction(order));
+          } else {
+            console.log('✅ All orders already in localStorage');
+          }
+        } else {
+          console.log('ℹ️ No orders found in Supabase');
+        }
+      } catch (error) {
+        console.error('❌ Error loading orders from Supabase:', error);
+      } finally {
+        setIsLoadingFromSupabase(false);
+      }
+    };
+
+    loadOrdersFromSupabase();
+  }, []); // Run once on mount
 
   // Filter marketplace orders only
   const marketplaceOrders = useMemo(() => {
