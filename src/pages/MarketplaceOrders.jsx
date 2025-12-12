@@ -85,18 +85,20 @@ export default function MarketplaceOrders() {
           const newOrders = transformedOrders.filter(o => !existingIds.has(o.id));
           
           if (newOrders.length > 0) {
-            console.log(`📦 Adding ${newOrders.length} new orders to localStorage`);
-            newOrders.forEach(order => {
-              console.log(`➕ Adding order: ${order.shopeeOrderId}`);
-              addTransaction(order);
-            });
+            console.log(`📦 Merging ${newOrders.length} new orders with ${transactions.length} existing transactions`);
             
-            // Verify localStorage after adding
+            // Use setTransactions to replace all at once (better for persist middleware)
+            const mergedTransactions = [...newOrders, ...transactions];
+            setTransactions(mergedTransactions);
+            
+            console.log(`✅ Total transactions after merge: ${mergedTransactions.length}`);
+            
+            // Verify localStorage after setting
             setTimeout(() => {
               const updatedData = localStorage.getItem('transaction-storage');
               if (updatedData) {
                 const parsed = JSON.parse(updatedData);
-                console.log('✅ localStorage updated, new count:', parsed.state?.transactions?.length || 0);
+                console.log('✅ localStorage verified, count:', parsed.state?.transactions?.length || 0);
               }
             }, 100);
           } else {
