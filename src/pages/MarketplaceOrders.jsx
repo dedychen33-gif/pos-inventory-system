@@ -27,7 +27,17 @@ export default function MarketplaceOrders() {
     const loadOrdersFromSupabase = async () => {
       try {
         setIsLoadingFromSupabase(true);
+        
+        // Check localStorage first
+        const localStorageData = localStorage.getItem('transaction-storage');
+        console.log('🔍 localStorage data:', localStorageData ? 'EXISTS' : 'EMPTY');
+        if (localStorageData) {
+          const parsed = JSON.parse(localStorageData);
+          console.log('📊 localStorage transactions count:', parsed.state?.transactions?.length || 0);
+        }
+        
         console.log('📥 Loading orders from Supabase...');
+        console.log('📊 Current transactions in store:', transactions.length);
         
         const { supabase, isSupabaseConfigured } = await import('../lib/supabase');
         
@@ -76,7 +86,19 @@ export default function MarketplaceOrders() {
           
           if (newOrders.length > 0) {
             console.log(`📦 Adding ${newOrders.length} new orders to localStorage`);
-            newOrders.forEach(order => addTransaction(order));
+            newOrders.forEach(order => {
+              console.log(`➕ Adding order: ${order.shopeeOrderId}`);
+              addTransaction(order);
+            });
+            
+            // Verify localStorage after adding
+            setTimeout(() => {
+              const updatedData = localStorage.getItem('transaction-storage');
+              if (updatedData) {
+                const parsed = JSON.parse(updatedData);
+                console.log('✅ localStorage updated, new count:', parsed.state?.transactions?.length || 0);
+              }
+            }, 100);
           } else {
             console.log('✅ All orders already in localStorage');
           }
