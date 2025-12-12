@@ -1,10 +1,18 @@
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
-);
+// Vercel serverless config
+export const config = {
+  maxDuration: 30
+};
+
+// Initialize Supabase lazily inside handler
+function getSupabase() {
+  const { createClient } = require('@supabase/supabase-js');
+  return createClient(
+    process.env.VITE_SUPABASE_URL || '',
+    process.env.VITE_SUPABASE_ANON_KEY || ''
+  );
+}
 
 function verifyWebhookSignature(payload, signature, partnerKey) {
   const computed = crypto
@@ -30,6 +38,7 @@ async function logWebhook(code, shopId, payload, signature, isVerified, status, 
     16: 'VIOLATION_ITEM'
   };
 
+  const supabase = getSupabase();
   await supabase.from('shopee_webhook_logs').insert({
     webhook_code: code,
     webhook_name: webhookNames[code] || 'UNKNOWN',
