@@ -1205,10 +1205,18 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         // Get marketplace store credentials
         let store = null
         
-        // Try to get from marketplace_stores array (new format)
-        const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
-        console.log('🔍 Checking marketplace_stores array:', storeData)
-        store = storeData.find(s => s.platform === product.source && s.isActive)
+        // Try to get from Zustand marketplaceStore (primary source)
+        const zustandData = JSON.parse(localStorage.getItem('marketplace-stores-storage') || '{}')
+        const zustandStores = zustandData?.state?.stores || []
+        console.log('🔍 Checking Zustand marketplace stores:', zustandStores)
+        store = zustandStores.find(s => s.platform === product.source && s.isConnected)
+        
+        // Fallback: Try to get from marketplace_stores array (old format)
+        if (!store) {
+          const storeData = JSON.parse(localStorage.getItem('marketplace_stores') || '[]')
+          console.log('🔍 Checking marketplace_stores array:', storeData)
+          store = storeData.find(s => s.platform === product.source && s.isActive)
+        }
         
         // Fallback: Try to get from localStorage with user-specific keys (format: shopee_xxx_user_userId)
         if (!store && product.source === 'shopee') {
