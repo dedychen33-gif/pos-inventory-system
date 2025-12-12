@@ -90,6 +90,15 @@ export const transformProductToDB = (p) => {
     dbProduct.variant_name = p.variantName;
   }
 
+  // Include Shopee-specific IDs if they exist
+  if (p.shopeeItemId) {
+    dbProduct.shopee_item_id = p.shopeeItemId;
+  }
+  
+  if (p.shopeeModelId) {
+    dbProduct.shopee_model_id = p.shopeeModelId;
+  }
+
   // Remove null/undefined values to prevent schema errors
   Object.keys(dbProduct).forEach(key => {
     if (dbProduct[key] === undefined) {
