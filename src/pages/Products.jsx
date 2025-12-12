@@ -1169,9 +1169,12 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                   }
                 }
                 console.log('✅ Successfully fetched Shopee credentials from Supabase:', {
+                  source: 'SUPABASE',
                   partnerId: data.partner_id,
                   shopId: data.shop_id,
-                  hasAccessToken: !!data.access_token
+                  hasAccessToken: !!data.access_token,
+                  accessTokenLength: data.access_token?.length,
+                  accessTokenPreview: data.access_token ? `${data.access_token.substring(0, 15)}...` : 'none'
                 })
               } else if (error) {
                 console.error('❌ Failed to get Shopee credentials from Supabase:', error.message)
@@ -1218,7 +1221,14 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                   accessToken: accessToken
                 }
               }
-              console.log('✅ Successfully built store object from localStorage:', store)
+              console.log('✅ Successfully built store object from localStorage:', {
+                source: 'LOCALSTORAGE',
+                partnerId,
+                shopId,
+                hasAccessToken: !!accessToken,
+                accessTokenLength: accessToken?.length,
+                accessTokenPreview: accessToken ? `${accessToken.substring(0, 15)}...` : 'none'
+              })
             } else {
               console.error('❌ Missing Shopee credentials in both Supabase and localStorage')
             }
