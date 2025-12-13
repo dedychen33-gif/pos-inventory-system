@@ -11,7 +11,12 @@ import {
   X,
   MessageCircle,
   Store,
-  Percent
+  Percent,
+  Warehouse,
+  Truck,
+  FileText,
+  Settings,
+  ScanLine
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useProductStore } from '../store/productStore'
@@ -20,6 +25,7 @@ import { useCustomerStore } from '../store/customerStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore'
 import { Link } from 'react-router-dom'
+import { isAndroid } from '../utils/platform'
 
 // Component to render marketplace logo
 const MarketplaceLogo = ({ platform, size = 24 }) => {
@@ -101,13 +107,196 @@ export default function Dashboard() {
     },
   ]
 
-  const quickActions = [
+  // Quick actions - different for Android vs Web
+  const quickActions = isAndroid ? [
+    { label: 'Scanner', path: '/scanner', color: 'bg-primary', icon: ScanLine },
+    { label: 'Produk', path: '/products', color: 'bg-success', icon: Package },
+    { label: 'Stok', path: '/stock', color: 'bg-warning', icon: Warehouse },
+    { label: 'Pembelian', path: '/purchases', color: 'bg-info', icon: Truck },
+    { label: 'Pelanggan', path: '/customers', color: 'bg-purple-500', icon: Users },
+    { label: 'Laporan', path: '/reports', color: 'bg-pink-500', icon: FileText },
+  ] : [
     { label: 'Transaksi Baru', path: '/pos', color: 'bg-primary', icon: ShoppingCart },
     { label: 'Tambah Produk', path: '/products', color: 'bg-success', icon: Package },
-    { label: 'Cek Stok', path: '/stock', color: 'bg-warning', icon: Package },
-    { label: 'Barang Masuk', path: '/purchases', color: 'bg-info', icon: TrendingUp },
+    { label: 'Cek Stok', path: '/stock', color: 'bg-warning', icon: Warehouse },
+    { label: 'Barang Masuk', path: '/purchases', color: 'bg-info', icon: Truck },
   ]
 
+  // Android-specific layout
+  if (isAndroid) {
+    return (
+      <div className="p-4 space-y-4">
+        {/* Critical Stock Alert Banner */}
+        {showLowStockAlert && (outOfStockProducts.length > 0 || lowStockProducts.length > 0) && (
+          <div className={`${outOfStockProducts.length > 0 ? 'bg-red-500' : 'bg-orange-500'} text-white p-3 rounded-xl flex items-center justify-between`}>
+            <div className="flex items-center gap-2 flex-1">
+              <Bell size={20} />
+              <div className="flex-1">
+                <p className="font-bold text-sm">
+                  {outOfStockProducts.length > 0 
+                    ? `⚠️ ${outOfStockProducts.length} produk HABIS!` 
+                    : `⚠️ ${lowStockProducts.length} stok menipis`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link 
+                to="/stock" 
+                className="bg-white text-gray-900 px-3 py-1.5 rounded-lg text-xs font-medium"
+              >
+                Lihat
+              </Link>
+              <button 
+                onClick={() => setShowLowStockAlert(false)}
+                className="p-1.5 hover:bg-white/20 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Header - Compact for Android */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 text-sm">Selamat datang di POS System</p>
+        </div>
+
+        {/* Stats Grid - 2x2 for Android */}
+        <div className="grid grid-cols-2 gap-3">
+          {stats.map((stat, index) => {
+            const Icon = stat.icon
+            return (
+              <div key={index} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`${stat.color} p-2 rounded-lg`}>
+                    <Icon size={18} className="text-white" />
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    {stat.trendUp ? (
+                      <ArrowUpRight size={14} className="text-green-600" />
+                    ) : (
+                      <ArrowDownRight size={14} className="text-red-600" />
+                    )}
+                    <span className={`text-xs font-medium ${stat.trendUp ? 'text-green-600' : 'text-red-600'}`}>
+                      {stat.trend}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-0.5">{stat.title}</p>
+                <h3 className="text-lg font-bold text-gray-900 truncate">{stat.value}</h3>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Quick Actions - Grid for Android */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <h2 className="text-lg font-bold mb-3">Menu Cepat</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon
+              return (
+                <Link
+                  key={index}
+                  to={action.path}
+                  className={`${action.color} text-white p-4 rounded-xl active:scale-95 transition-transform flex flex-col items-center justify-center`}
+                >
+                  <Icon size={28} className="mb-2" />
+                  <p className="font-medium text-xs text-center">{action.label}</p>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Profit Card - Compact */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-xs">Profit Hari Ini</p>
+              <h3 className="text-2xl font-bold">Rp {todayProfit.toLocaleString('id-ID')}</h3>
+              <p className="text-green-100 text-xs mt-1">
+                {todayTransactions.filter(t => t.status === 'completed').length} transaksi
+              </p>
+            </div>
+            <div className="bg-white/20 p-3 rounded-xl">
+              <Percent size={24} />
+            </div>
+          </div>
+        </div>
+
+        {/* Low Stock - Compact List */}
+        {lowStockProducts.length > 0 && (
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <AlertTriangle className="text-warning" size={20} />
+                Stok Menipis
+              </h2>
+              <Link to="/stock" className="text-primary text-sm font-medium">
+                Lihat →
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {lowStockProducts.slice(0, 3).map((product) => (
+                <div key={product.id} className="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
+                  <p className="font-medium text-gray-900 text-sm truncate flex-1">{product.name}</p>
+                  <p className="font-bold text-orange-600 text-sm ml-2">{product.stock} {product.unit}</p>
+                </div>
+              ))}
+              {lowStockProducts.length > 3 && (
+                <p className="text-center text-xs text-gray-500">+{lowStockProducts.length - 3} lainnya</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Transactions - Compact */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold">Transaksi Terbaru</h2>
+            <Link to="/sales" className="text-primary text-sm font-medium">
+              Lihat →
+            </Link>
+          </div>
+          {todayTransactions.length === 0 ? (
+            <p className="text-gray-500 text-center py-4 text-sm">Belum ada transaksi</p>
+          ) : (
+            <div className="space-y-2">
+              {todayTransactions.slice(0, 3).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{transaction.id}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(transaction.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <p className="font-bold text-green-600 text-sm">
+                    Rp {transaction.total.toLocaleString('id-ID')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* WhatsApp CS Floating Button */}
+        {whatsappNumber && (
+          <a
+            href={getWhatsAppLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fixed bottom-20 right-4 bg-green-500 text-white p-3 rounded-full shadow-lg z-30"
+          >
+            <MessageCircle size={24} />
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  // Web layout (original)
   return (
     <div className="p-6 space-y-6">
       {/* Critical Stock Alert Banner */}

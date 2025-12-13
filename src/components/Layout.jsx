@@ -53,8 +53,8 @@ const allBottomNavItems = [
   { path: '/', icon: LayoutDashboard, label: 'Home' },
   { path: '/pos', icon: ShoppingCart, label: 'Kasir', webOnly: true },
   { path: '/scanner', icon: ScanLine, label: 'Scanner', androidOnly: true },
-  { path: '/products', icon: Package, label: 'Master Produk' },
-  { path: '/stock', icon: Warehouse, label: 'Stok' },
+  { path: '/products', icon: Package, label: 'Produk' },
+  { path: '/sales', icon: TrendingUp, label: 'Penjualan' },
 ]
 
 // Filter bottom nav for platform
@@ -326,13 +326,13 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-16">
+      <main className={`flex-1 overflow-y-auto ${isAndroid ? 'pb-20' : 'pb-16'}`}>
         {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom">
-        <div className="flex justify-around items-center h-14">
+      {/* Bottom Navigation - Android Optimized */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom shadow-lg">
+        <div className={`flex justify-around items-center ${isAndroid ? 'h-16' : 'h-14'}`}>
           {bottomNavItems.map((item) => {
             if (!hasAccess(item.permission || 'all')) return null
             
@@ -343,14 +343,16 @@ export default function Layout({ children }) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-95 ${
                   isActive
                     ? 'text-primary'
-                    : 'text-gray-500 active:text-gray-700'
+                    : 'text-gray-500 active:text-primary/70'
                 }`}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={`text-[10px] mt-0.5 leading-tight ${isActive ? 'font-medium' : ''}`}>
+                <div className={`${isActive ? 'bg-primary/10 px-4 py-1 rounded-full' : ''}`}>
+                  <Icon size={isAndroid ? 24 : 20} strokeWidth={isActive ? 2.5 : 2} />
+                </div>
+                <span className={`${isAndroid ? 'text-xs' : 'text-[10px]'} mt-0.5 leading-tight ${isActive ? 'font-semibold' : ''}`}>
                   {item.label}
                 </span>
               </Link>
@@ -359,10 +361,10 @@ export default function Layout({ children }) {
           {/* More menu button */}
           <button
             onClick={() => setDrawerOpen(true)}
-            className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 active:text-gray-700"
+            className={`flex flex-col items-center justify-center flex-1 h-full text-gray-500 active:text-primary/70 active:scale-95`}
           >
-            <Menu size={20} />
-            <span className="text-[10px] mt-0.5 leading-tight">Lainnya</span>
+            <Menu size={isAndroid ? 24 : 20} />
+            <span className={`${isAndroid ? 'text-xs' : 'text-[10px]'} mt-0.5 leading-tight`}>Lainnya</span>
           </button>
         </div>
       </nav>
