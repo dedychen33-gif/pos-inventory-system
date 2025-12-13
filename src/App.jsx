@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
@@ -16,7 +17,16 @@ import Settings from './pages/Settings'
 import RemoteScanner from './pages/RemoteScanner'
 
 function App() {
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, user, resetToDefaultAdmin } = useAuthStore()
+
+  // One-time fix: Reset user if they have Cashier role but should be admin
+  useEffect(() => {
+    if (user && user.role === 'cashier' && user.name === 'Administrator') {
+      console.log('🔧 Fixing corrupted admin user...')
+      resetToDefaultAdmin()
+      window.location.reload()
+    }
+  }, [user, resetToDefaultAdmin])
 
   return (
     <Router>
