@@ -89,6 +89,20 @@ export function useRealtimeSync() {
     isInitialized.current = true;
     
     const initSync = async () => {
+      // Check if data was just restored - skip initial sync to preserve restored data
+      const justRestored = localStorage.getItem('just-restored');
+      if (justRestored === 'true') {
+        console.log('⏭️ Skipping initial cloud sync - data just restored from backup');
+        localStorage.removeItem('just-restored');
+        setSyncStatus({
+          isOnline: true,
+          isSyncing: false,
+          lastSync: new Date().toISOString(),
+          mode: 'polling'
+        });
+        return;
+      }
+      
       console.log('🔄 Initializing cloud sync (polling mode)...');
       setSyncStatus(prev => ({ ...prev, isSyncing: true }));
       

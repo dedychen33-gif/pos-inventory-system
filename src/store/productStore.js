@@ -83,6 +83,13 @@ export const useProductStore = create(
       fetchProducts: async () => {
         if (!isSupabaseConfigured()) return
         
+        // Check if data was just restored - don't overwrite
+        const justRestored = localStorage.getItem('just-restored')
+        if (justRestored === 'true') {
+          console.log('⏭️ Skipping fetchProducts - data just restored')
+          return
+        }
+        
         set({ isSyncing: true })
         const { data, error } = await supabase
           .from('products')
@@ -91,7 +98,18 @@ export const useProductStore = create(
           .order('created_at', { ascending: false })
 
         if (!error && data) {
-          set({ products: data.map(transformProduct), isSyncing: false })
+          // IMPORTANT: Only overwrite if cloud has data AND local is empty
+          // This prevents losing local data when cloud is empty
+          const localProducts = get().products
+          if (data.length > 0) {
+            set({ products: data.map(transformProduct), isSyncing: false })
+          } else if (localProducts.length > 0) {
+            // Cloud is empty but local has data - keep local
+            console.log('☁️ Cloud empty, keeping local products:', localProducts.length)
+            set({ isSyncing: false })
+          } else {
+            set({ products: [], isSyncing: false })
+          }
         } else {
           set({ isSyncing: false })
         }
