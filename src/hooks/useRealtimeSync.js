@@ -1,5 +1,5 @@
-// Two-Way Sync Hook (Polling Mode)
-// Syncs data between localStorage and Supabase using polling (no WebSocket)
+// Real-Time Sync Hook (WebSocket Mode)
+// Syncs data between localStorage and Supabase using WebSocket for instant updates
 // IMPORTANT: Only syncs if cloud has data, never overwrites local with empty cloud
 
 import { useEffect, useRef, useState } from 'react';
@@ -75,12 +75,12 @@ const transformTransactionFromDB = (t) => ({
 
 export function useRealtimeSync() {
   const isInitialized = useRef(false);
-  const pollIntervalRef = useRef(null);
+  const channelRef = useRef(null);
   const [syncStatus, setSyncStatus] = useState({
     isOnline: false,
     isSyncing: false,
     lastSync: null,
-    mode: 'polling'
+    mode: 'realtime'
   });
 
   useEffect(() => {
@@ -98,42 +98,161 @@ export function useRealtimeSync() {
           isOnline: true,
           isSyncing: false,
           lastSync: new Date().toISOString(),
-          mode: 'polling'
+          mode: 'realtime'
         });
+        // Still setup realtime subscriptions
+        setupRealtimeSubscriptions();
         return;
       }
       
-      console.log('🔄 Initializing cloud sync (polling mode)...');
+      console.log('🔄 Initializing REAL-TIME cloud sync...');
       setSyncStatus(prev => ({ ...prev, isSyncing: true }));
       
       try {
-        // Initial sync - only add new data from cloud, never remove local data
+        // Initial sync - fetch existing data from cloud
         await syncFromCloud();
+        
+        // Setup realtime subscriptions for instant updates
+        setupRealtimeSubscriptions();
         
         setSyncStatus({
           isOnline: true,
           isSyncing: false,
           lastSync: new Date().toISOString(),
-          mode: 'polling'
+          mode: 'realtime'
         });
         
-        // Poll every 60 seconds
-        pollIntervalRef.current = setInterval(async () => {
-          setSyncStatus(prev => ({ ...prev, isSyncing: true }));
-          await syncFromCloud();
-          setSyncStatus(prev => ({ 
-            ...prev, 
-            isSyncing: false, 
-            lastSync: new Date().toISOString() 
-          }));
-        }, 60000);
-        
-        console.log('✅ Cloud sync active - polling every 60s');
+        console.log('✅ Real-time sync ACTIVE - instant updates enabled!');
           
       } catch (error) {
         console.error('❌ Sync error:', error.message);
         setSyncStatus(prev => ({ ...prev, isSyncing: false, isOnline: false }));
       }
+    };
+
+    // Setup Supabase Realtime subscriptions
+    const setupRealtimeSubscriptions = () => {
+      // Create a single channel for all tables
+      channelRef.current = supabase
+        .channel('db-changes')
+        // Products changes
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'products' }, 
+          (payload) => {
+            console.log('📦 [REALTIME] New product:', payload.new.name);
+            const transformed = transformProductFromDB(payload.new);
+            const localProducts = useProductStore.getState().products;
+            
+            // Check if already exists
+            if (!localProducts.find(p => p.id === transformed.id || p.sku === transformed.sku)) {
+              useProductStore.setState({ products: [...localProducts, transformed] });
+              setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+            }
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'products' }, 
+          (payload) => {
+            console.log('📦 [REALTIME] Product updated:', payload.new.name);
+            const transformed = transformProductFromDB(payload.new);
+            const localProducts = useProductStore.getState().products;
+            
+            // Update existing product
+            const updatedProducts = localProducts.map(p => 
+              p.id === transformed.id ? transformed : p
+            );
+            useProductStore.setState({ products: updatedProducts });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'DELETE', schema: 'public', table: 'products' }, 
+          (payload) => {
+            console.log('📦 [REALTIME] Product deleted:', payload.old.id);
+            const localProducts = useProductStore.getState().products;
+            const updatedProducts = localProducts.filter(p => p.id !== payload.old.id);
+            useProductStore.setState({ products: updatedProducts });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        // Customers changes
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'customers' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] New customer:', payload.new.name);
+            const transformed = transformCustomerFromDB(payload.new);
+            const localCustomers = useCustomerStore.getState().customers;
+            
+            if (!localCustomers.find(c => c.id === transformed.id)) {
+              useCustomerStore.setState({ customers: [...localCustomers, transformed] });
+              setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+            }
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'customers' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] Customer updated:', payload.new.name);
+            const transformed = transformCustomerFromDB(payload.new);
+            const localCustomers = useCustomerStore.getState().customers;
+            
+            const updatedCustomers = localCustomers.map(c => 
+              c.id === transformed.id ? transformed : c
+            );
+            useCustomerStore.setState({ customers: updatedCustomers });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'DELETE', schema: 'public', table: 'customers' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] Customer deleted:', payload.old.id);
+            const localCustomers = useCustomerStore.getState().customers;
+            const updatedCustomers = localCustomers.filter(c => c.id !== payload.old.id);
+            useCustomerStore.setState({ customers: updatedCustomers });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        // Transactions changes
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'transactions' }, 
+          (payload) => {
+            console.log('💳 [REALTIME] New transaction:', payload.new.transaction_code);
+            const transformed = transformTransactionFromDB(payload.new);
+            const localTransactions = useTransactionStore.getState().transactions;
+            
+            if (!localTransactions.find(t => t.id === transformed.id || t.transactionCode === transformed.transactionCode)) {
+              const updatedTransactions = [transformed, ...localTransactions];
+              updatedTransactions.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+              useTransactionStore.setState({ transactions: updatedTransactions });
+              setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+            }
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'transactions' }, 
+          (payload) => {
+            console.log('💳 [REALTIME] Transaction updated:', payload.new.transaction_code);
+            const transformed = transformTransactionFromDB(payload.new);
+            const localTransactions = useTransactionStore.getState().transactions;
+            
+            const updatedTransactions = localTransactions.map(t => 
+              t.id === transformed.id ? transformed : t
+            );
+            useTransactionStore.setState({ transactions: updatedTransactions });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔌 Realtime subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Real-time sync connected!');
+            setSyncStatus(prev => ({ ...prev, isOnline: true }));
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.log('❌ Real-time sync disconnected');
+            setSyncStatus(prev => ({ ...prev, isOnline: false }));
+          }
+        });
     };
 
     // Sync from cloud - ADD new items only, never remove existing local data
@@ -155,6 +274,7 @@ export function useRealtimeSync() {
           
           // Find new products from cloud that don't exist locally
           let newFromCloud = 0;
+          let updatedFromCloud = 0;
           const updatedProducts = [...localProducts];
           
           cloudProducts.forEach(cloudP => {
@@ -169,12 +289,19 @@ export function useRealtimeSync() {
               // New product from cloud - add it
               updatedProducts.push(transformed);
               newFromCloud++;
+            } else if (existsById) {
+              // Update existing product with cloud data
+              const index = updatedProducts.findIndex(p => p.id === cloudP.id);
+              if (index !== -1) {
+                updatedProducts[index] = transformed;
+                updatedFromCloud++;
+              }
             }
           });
           
-          if (newFromCloud > 0) {
+          if (newFromCloud > 0 || updatedFromCloud > 0) {
             useProductStore.setState({ products: updatedProducts });
-            console.log(`📦 Products: +${newFromCloud} new from cloud (total: ${updatedProducts.length})`);
+            console.log(`📦 Products: +${newFromCloud} new, ~${updatedFromCloud} updated (total: ${updatedProducts.length})`);
           }
         }
       } catch (err) {
@@ -192,25 +319,33 @@ export function useRealtimeSync() {
           const localById = new Map(localCustomers.map(c => [c.id, c]));
           
           let newFromCloud = 0;
+          let updatedFromCloud = 0;
           const updatedCustomers = [...localCustomers];
           
           cloudCustomers.forEach(cloudC => {
+            const transformed = transformCustomerFromDB(cloudC);
             if (!localById.has(cloudC.id)) {
-              updatedCustomers.push(transformCustomerFromDB(cloudC));
+              updatedCustomers.push(transformed);
               newFromCloud++;
+            } else {
+              const index = updatedCustomers.findIndex(c => c.id === cloudC.id);
+              if (index !== -1) {
+                updatedCustomers[index] = transformed;
+                updatedFromCloud++;
+              }
             }
           });
           
-          if (newFromCloud > 0) {
+          if (newFromCloud > 0 || updatedFromCloud > 0) {
             useCustomerStore.setState({ customers: updatedCustomers });
-            console.log(`👤 Customers: +${newFromCloud} new from cloud`);
+            console.log(`👤 Customers: +${newFromCloud} new, ~${updatedFromCloud} updated`);
           }
         }
       } catch (err) {
         console.warn('⚠️ Customers sync:', err.message);
       }
       
-      // === TRANSACTIONS (POS only, not Shopee orders) ===
+      // === TRANSACTIONS ===
       try {
         const { data: cloudTransactions, error } = await supabase
           .from('transactions')
@@ -247,15 +382,16 @@ export function useRealtimeSync() {
         console.warn('⚠️ Transactions sync:', err.message);
       }
       
-      console.log('✅ Sync complete - local data preserved');
+      console.log('✅ Initial sync complete');
     };
 
     initSync();
 
     // Cleanup
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
+      if (channelRef.current) {
+        console.log('🔌 Unsubscribing from realtime...');
+        supabase.removeChannel(channelRef.current);
       }
     };
   }, []);
