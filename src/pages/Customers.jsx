@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Search, Star, Gift, DollarSign } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, Star, Gift, DollarSign, Users } from 'lucide-react'
 import { useCustomerStore } from '../store/customerStore'
 import { useProductStore } from '../store/productStore'
+import { isAndroid } from '../utils/platform'
 
 export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -36,48 +37,68 @@ export default function Customers() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className={`${isAndroid ? 'p-4' : 'p-6'} space-y-4`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manajemen Pelanggan</h1>
-          <p className="text-gray-600 mt-1">Kelola data pelanggan dan program loyalty</p>
+          <h1 className={`${isAndroid ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900`}>Pelanggan</h1>
+          <p className="text-gray-600 text-sm mt-1">Kelola data pelanggan</p>
         </div>
         <button
           onClick={() => {
             setEditingCustomer(null)
             setShowModal(true)
           }}
-          className="btn btn-primary flex items-center gap-2"
+          className={`btn btn-primary flex items-center gap-2 ${isAndroid ? 'px-3 py-2' : ''}`}
         >
-          <Plus size={20} />
-          Tambah Pelanggan
+          <Plus size={isAndroid ? 18 : 20} />
+          {isAndroid ? 'Tambah' : 'Tambah Pelanggan'}
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card">
-          <p className="text-sm text-gray-600">Total Pelanggan</p>
-          <p className="text-2xl font-bold mt-1">{customers.length}</p>
+      {/* Stats - Android optimized */}
+      <div className={`grid ${isAndroid ? 'grid-cols-2 gap-3' : 'grid-cols-1 md:grid-cols-4 gap-6'}`}>
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-600">Total</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{customers.length}</p>
+            </div>
+            <Users className="text-primary" size={isAndroid ? 24 : 32} />
+          </div>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-600">Member</p>
-          <p className="text-2xl font-bold mt-1">
-            {customers.filter((c) => c.type === 'member').length}
-          </p>
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-600">Member</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>
+                {customers.filter((c) => c.type === 'member').length}
+              </p>
+            </div>
+            <Gift className="text-green-500" size={isAndroid ? 24 : 32} />
+          </div>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-600">VIP</p>
-          <p className="text-2xl font-bold mt-1 text-yellow-600">
-            {customers.filter((c) => c.type === 'vip').length}
-          </p>
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-600">VIP</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1 text-yellow-600`}>
+                {customers.filter((c) => c.type === 'vip').length}
+              </p>
+            </div>
+            <Star className="text-yellow-500" size={isAndroid ? 24 : 32} />
+          </div>
         </div>
-        <div className="card">
-          <p className="text-sm text-gray-600">Total Points</p>
-          <p className="text-2xl font-bold mt-1 text-primary">
-            {customers.reduce((sum, c) => sum + c.points, 0).toLocaleString('id-ID')}
-          </p>
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-600">Points</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1 text-primary`}>
+                {customers.reduce((sum, c) => sum + c.points, 0).toLocaleString('id-ID')}
+              </p>
+            </div>
+            <DollarSign className="text-blue-500" size={isAndroid ? 24 : 32} />
+          </div>
         </div>
       </div>
 

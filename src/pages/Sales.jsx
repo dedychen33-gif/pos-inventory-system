@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { isAndroid } from '../utils/platform'
 
 export default function Sales() {
   const [showModal, setShowModal] = useState(false)

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText, DollarSign } from 'lucide-react'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
+import { isAndroid } from '../utils/platform'
 
 export default function Purchases() {
   const [showModal, setShowModal] = useState(false)

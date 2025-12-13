@@ -4,6 +4,7 @@ import { useTransactionStore } from '../store/transactionStore'
 import { useProductStore } from '../store/productStore'
 import { useMarketplaceStore } from '../store/marketplaceStore'
 import { useAuthStore } from '../store/authStore'
+import { isAndroid } from '../utils/platform'
 
 export default function Reports() {
   const [reportType, setReportType] = useState('transactions')
@@ -89,20 +90,20 @@ export default function Reports() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className={`${isAndroid ? 'p-4' : 'p-6'} space-y-4`}>
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Laporan & Analytics</h1>
-        <p className="text-gray-600 mt-1">Monitor performa bisnis Anda</p>
+        <h1 className={`${isAndroid ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900`}>Laporan</h1>
+        <p className="text-gray-600 text-sm mt-1">Monitor performa bisnis</p>
       </div>
 
-      {/* Report Selector */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
+      {/* Report Selector - Android optimized */}
+      <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+        <div className={`flex flex-col ${isAndroid ? 'gap-3' : 'md:flex-row gap-4'}`}>
           <select
             value={reportType}
             onChange={(e) => setReportType(e.target.value)}
-            className="input flex-1"
+            className={`input flex-1 ${isAndroid ? 'text-sm' : ''}`}
           >
             {reportTypes.map((type) => (
               <option key={type.id} value={type.id}>{type.label}</option>
@@ -112,7 +113,7 @@ export default function Reports() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="input"
+            className={`input ${isAndroid ? 'text-sm' : ''}`}
           >
             <option value="today">Hari Ini</option>
             <option value="week">7 Hari Terakhir</option>

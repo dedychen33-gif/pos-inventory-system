@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Package, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, DollarSign, History } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
+import { isAndroid } from '../utils/platform'
 
 export default function Stock() {
   const [activeTab, setActiveTab] = useState('overview')
@@ -20,66 +21,66 @@ export default function Stock() {
   ]
 
   return (
-    <div className="p-6 space-y-6">
+    <div className={`${isAndroid ? 'p-4' : 'p-6'} space-y-4`}>
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manajemen Stok</h1>
-        <p className="text-gray-600 mt-1">Monitor dan kelola stok barang</p>
+        <h1 className={`${isAndroid ? 'text-2xl' : 'text-3xl'} font-bold text-gray-900`}>Manajemen Stok</h1>
+        <p className="text-gray-600 text-sm mt-1">Monitor dan kelola stok barang</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="card">
+      {/* Stats - Android optimized */}
+      <div className={`grid ${isAndroid ? 'grid-cols-2 gap-3' : 'grid-cols-1 md:grid-cols-4 gap-6'}`}>
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Item</p>
-              <p className="text-2xl font-bold mt-1">{products.length}</p>
+              <p className="text-xs text-gray-600">Total Item</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{products.length}</p>
             </div>
-            <Package className="text-primary" size={40} />
+            <Package className="text-primary" size={isAndroid ? 28 : 40} />
           </div>
         </div>
         
-        <div className="card">
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Nilai Stok</p>
-              <p className="text-2xl font-bold mt-1">Rp {(totalValue / 1000000).toFixed(1)}M</p>
+              <p className="text-xs text-gray-600">Nilai Stok</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>Rp {(totalValue / 1000000).toFixed(1)}M</p>
             </div>
-            <DollarSign className="text-success" size={40} />
+            <DollarSign className="text-success" size={isAndroid ? 28 : 40} />
           </div>
         </div>
         
-        <div className="card">
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Stok Rendah</p>
-              <p className="text-2xl font-bold mt-1 text-warning">{lowStockProducts.length}</p>
+              <p className="text-xs text-gray-600">Stok Rendah</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1 text-warning`}>{lowStockProducts.length}</p>
             </div>
-            <AlertTriangle className="text-warning" size={40} />
+            <AlertTriangle className="text-warning" size={isAndroid ? 28 : 40} />
           </div>
         </div>
         
-        <div className="card">
+        <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Stok</p>
-              <p className="text-2xl font-bold mt-1">
+              <p className="text-xs text-gray-600">Total Stok</p>
+              <p className={`${isAndroid ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>
                 {products.reduce((sum, p) => sum + p.stock, 0)}
               </p>
             </div>
-            <Package className="text-info" size={40} />
+            <Package className="text-info" size={isAndroid ? 28 : 40} />
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - Scrollable on Android */}
       <div className="border-b">
-        <div className="flex gap-4">
+        <div className={`flex ${isAndroid ? 'overflow-x-auto hide-scrollbar gap-2 pb-1' : 'gap-4'}`}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+              className={`${isAndroid ? 'px-3 py-2 text-sm whitespace-nowrap' : 'px-4 py-2'} font-medium border-b-2 transition-colors ${
                 activeTab === tab.id
                   ? 'border-primary text-primary'
                   : 'border-transparent text-gray-600 hover:text-gray-900'
