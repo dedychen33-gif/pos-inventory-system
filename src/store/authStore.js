@@ -2,6 +2,36 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import CryptoJS from 'crypto-js'
 import { useAuditStore, AUDIT_ACTIONS } from './auditStore'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+
+// Sync user to Supabase cloud
+const syncUserToCloud = async (user) => {
+  if (!isSupabaseConfigured()) return
+  
+  try {
+    const { error } = await supabase
+      .from('app_users')
+      .upsert({
+        id: user.id,
+        username: user.username,
+        password_hash: user.password,
+        name: user.name,
+        role: user.role,
+        permissions: user.permissions,
+        is_active: user.isActive,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt || new Date().toISOString()
+      }, { onConflict: 'id' })
+    
+    if (error) {
+      console.error('❌ Failed to sync user to cloud:', error.message)
+    } else {
+      console.log('✅ User synced to cloud:', user.username)
+    }
+  } catch (err) {
+    console.error('❌ User sync error:', err.message)
+  }
+}
 
 // Hash password function
 const hashPassword = (password) => {
@@ -154,7 +184,7 @@ export const useAuthStore = create(
       },
 
       // Add new user
-      addUser: (userData) => {
+      addUser: async (userData) => {
         const users = get().users
         
         // Check duplicate username
@@ -186,11 +216,15 @@ export const useAuthStore = create(
         }
         
         set({ users: [...users, newUser] })
+        
+        // Sync to cloud
+        await syncUserToCloud(newUser)
+        
         return { success: true, user: newUser }
       },
 
       // Update user
-      updateUser: (userId, updates) => {
+      updateUser: async (userId, updates) => {
         const users = get().users
         const currentUser = get().user
         
@@ -211,6 +245,11 @@ export const useAuthStore = create(
           }
         }
         
+        // Hash password if provided
+        if (updates.password) {
+          updates.password = hashPassword(updates.password)
+        }
+        
         const updatedUsers = users.map(u => 
           u.id === userId ? { ...u, ...updates, updatedAt: new Date().toISOString() } : u
         )
@@ -221,6 +260,12 @@ export const useAuthStore = create(
           const updatedUser = updatedUsers.find(u => u.id === userId)
           const { password: _, ...userWithoutPassword } = updatedUser
           set({ user: userWithoutPassword })
+        }
+        
+        // Sync to cloud
+        const updatedUser = updatedUsers.find(u => u.id === userId)
+        if (updatedUser) {
+          await syncUserToCloud(updatedUser)
         }
         
         return { success: true }
@@ -267,12 +312,18 @@ export const useAuthStore = create(
         return { success: true }
       },
 
-      changePassword: (username, newPassword) => {
+      changePassword: async (username, newPassword) => {
         const users = get().users
         const updatedUsers = users.map(u => 
-          u.username === username ? { ...u, password: hashPassword(newPassword) } : u
+          u.username === username ? { ...u, password: hashPassword(newPassword), updatedAt: new Date().toISOString() } : u
         )
         set({ users: updatedUsers })
+        
+        // Sync to cloud
+        const updatedUser = updatedUsers.find(u => u.username === username)
+        if (updatedUser) {
+          await syncUserToCloud(updatedUser)
+        }
       },
 
       // Update marketplace credentials for a user

@@ -7,6 +7,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useProductStore } from '../store/productStore';
 import { useCustomerStore } from '../store/customerStore';
 import { useTransactionStore } from '../store/transactionStore';
+import { useAuthStore } from '../store/authStore';
 
 // Transform functions - DB to Local
 const transformProductFromDB = (p) => ({
@@ -71,6 +72,30 @@ const transformTransactionFromDB = (t) => ({
   cashierName: t.cashier_name,
   source: t.source || 'pos',
   createdAt: t.created_at
+});
+
+const transformUserFromDB = (u) => ({
+  id: u.id,
+  username: u.username,
+  password: u.password_hash,
+  name: u.name,
+  role: u.role,
+  permissions: u.permissions || ['pos', 'products_view'],
+  isActive: u.is_active,
+  createdAt: u.created_at,
+  updatedAt: u.updated_at,
+  marketplaceCredentials: {
+    shopee: {
+      partnerId: '',
+      partnerKey: '',
+      shopId: '',
+      accessToken: '',
+      refreshToken: '',
+      shopName: '',
+      isConnected: false,
+      lastSync: null
+    }
+  }
 });
 
 export function useRealtimeSync() {
@@ -243,6 +268,53 @@ export function useRealtimeSync() {
             setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
           }
         )
+        // Users changes - sync username/password between devices
+        .on('postgres_changes', 
+          { event: 'INSERT', schema: 'public', table: 'app_users' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] New user:', payload.new.username);
+            const transformed = transformUserFromDB(payload.new);
+            const localUsers = useAuthStore.getState().users;
+            
+            if (!localUsers.find(u => u.id === transformed.id || u.username === transformed.username)) {
+              useAuthStore.setState({ users: [...localUsers, transformed] });
+              setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+            }
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'app_users' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] User updated:', payload.new.username);
+            const transformed = transformUserFromDB(payload.new);
+            const localUsers = useAuthStore.getState().users;
+            const currentUser = useAuthStore.getState().user;
+            
+            // Update user in local store
+            const updatedUsers = localUsers.map(u => 
+              u.id === transformed.id ? { ...u, ...transformed, marketplaceCredentials: u.marketplaceCredentials } : u
+            );
+            useAuthStore.setState({ users: updatedUsers });
+            
+            // If current logged-in user was updated, update session too
+            if (currentUser?.id === transformed.id) {
+              const { password: _, ...userWithoutPassword } = transformed;
+              useAuthStore.setState({ user: { ...currentUser, ...userWithoutPassword } });
+            }
+            
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
+        .on('postgres_changes', 
+          { event: 'DELETE', schema: 'public', table: 'app_users' }, 
+          (payload) => {
+            console.log('👤 [REALTIME] User deleted:', payload.old.id);
+            const localUsers = useAuthStore.getState().users;
+            const updatedUsers = localUsers.filter(u => u.id !== payload.old.id);
+            useAuthStore.setState({ users: updatedUsers });
+            setSyncStatus(prev => ({ ...prev, lastSync: new Date().toISOString() }));
+          }
+        )
         .subscribe((status) => {
           console.log('🔌 Realtime subscription status:', status);
           if (status === 'SUBSCRIBED') {
@@ -380,6 +452,52 @@ export function useRealtimeSync() {
         }
       } catch (err) {
         console.warn('⚠️ Transactions sync:', err.message);
+      }
+      
+      // === USERS (for shared authentication) ===
+      try {
+        const { data: cloudUsers, error } = await supabase
+          .from('app_users')
+          .select('*');
+        
+        if (!error && cloudUsers && cloudUsers.length > 0) {
+          const localUsers = useAuthStore.getState().users;
+          const localById = new Map(localUsers.map(u => [u.id, u]));
+          const localByUsername = new Map(localUsers.map(u => [u.username.toLowerCase(), u]));
+          
+          let newFromCloud = 0;
+          let updatedFromCloud = 0;
+          const updatedUsers = [...localUsers];
+          
+          cloudUsers.forEach(cloudU => {
+            const transformed = transformUserFromDB(cloudU);
+            const existsById = localById.has(cloudU.id);
+            const existsByUsername = localByUsername.has(cloudU.username.toLowerCase());
+            
+            if (!existsById && !existsByUsername) {
+              // New user from cloud
+              updatedUsers.push(transformed);
+              newFromCloud++;
+            } else if (existsById) {
+              // Update existing user with cloud data (preserve local marketplaceCredentials)
+              const index = updatedUsers.findIndex(u => u.id === cloudU.id);
+              if (index !== -1) {
+                updatedUsers[index] = { 
+                  ...transformed, 
+                  marketplaceCredentials: updatedUsers[index].marketplaceCredentials 
+                };
+                updatedFromCloud++;
+              }
+            }
+          });
+          
+          if (newFromCloud > 0 || updatedFromCloud > 0) {
+            useAuthStore.setState({ users: updatedUsers });
+            console.log(`🔐 Users: +${newFromCloud} new, ~${updatedFromCloud} updated`);
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ Users sync:', err.message);
       }
       
       console.log('✅ Initial sync complete');
