@@ -502,64 +502,68 @@ export default function Products() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* Header - Android optimized */}
+      <div className={`flex items-center justify-between flex-wrap gap-2 ${isAndroid ? '' : ''}`}>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Master Produk</h1>
-          <p className="text-gray-600 mt-1">Database produk lokal & Marketplace (tersimpan di perangkat)</p>
+          <h1 className={`${isAndroid ? 'text-xl' : 'text-2xl md:text-3xl'} font-bold text-gray-900`}>Produk</h1>
+          <p className="text-gray-600 text-sm mt-1">{products.length} produk tersimpan</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Sync Cloud Button */}
-          <button
-            onClick={handleSyncToCloud}
-            disabled={isSyncing}
-            className="btn btn-outline flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
-            title="Upload data lokal ke Cloud"
-          >
-            <Cloud size={18} className={isSyncing ? 'animate-bounce' : ''} />
-            <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
-          </button>
+          {/* Sync Cloud Button - Hide on Android */}
+          {!isAndroid && (
+            <button
+              onClick={handleSyncToCloud}
+              disabled={isSyncing}
+              className="btn btn-outline flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+              title="Upload data lokal ke Cloud"
+            >
+              <Cloud size={18} className={isSyncing ? 'animate-bounce' : ''} />
+              <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+            </button>
+          )}
 
-          {/* Import/Export Buttons */}
-          <div className="flex gap-1">
-            <button
-              onClick={handleExportProducts}
-              className="btn btn-outline flex items-center gap-1"
-              title="Export ke CSV"
-            >
-              <Download size={18} />
-              <span className="hidden md:inline">Export</span>
-            </button>
-            <div className="relative">
-              <input
-                type="file"
-                id="csv-import"
-                accept=".csv"
-                onChange={handleFileImport}
-                className="hidden"
-              />
-              <label
-                htmlFor="csv-import"
-                className="btn btn-outline flex items-center gap-1 cursor-pointer"
-                title="Import dari CSV"
+          {/* Import/Export Buttons - Hide on Android */}
+          {!isAndroid && (
+            <div className="flex gap-1">
+              <button
+                onClick={handleExportProducts}
+                className="btn btn-outline flex items-center gap-1"
+                title="Export ke CSV"
               >
-                <Upload size={18} />
-                <span className="hidden md:inline">Import</span>
-              </label>
+                <Download size={18} />
+                <span className="hidden md:inline">Export</span>
+              </button>
+              <div className="relative">
+                <input
+                  type="file"
+                  id="csv-import"
+                  accept=".csv"
+                  onChange={handleFileImport}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="csv-import"
+                  className="btn btn-outline flex items-center gap-1 cursor-pointer"
+                  title="Import dari CSV"
+                >
+                  <Upload size={18} />
+                  <span className="hidden md:inline">Import</span>
+                </label>
+              </div>
+              <button
+                onClick={handleDownloadTemplate}
+                className="btn btn-outline flex items-center gap-1"
+                title="Download Template CSV"
+              >
+                <FileSpreadsheet size={18} />
+              </button>
             </div>
-            <button
-              onClick={handleDownloadTemplate}
-              className="btn btn-outline flex items-center gap-1"
-              title="Download Template CSV"
-            >
-              <FileSpreadsheet size={18} />
-            </button>
-          </div>
+          )}
           {/* Scan Button - Android Only */}
           {isAndroid && (
             <button
               onClick={() => setShowScanner(true)}
-              className="btn btn-outline flex items-center gap-2"
+              className="btn btn-primary flex items-center gap-2 px-3 py-2"
             >
               <Camera size={20} />
               Scan
@@ -570,19 +574,19 @@ export default function Products() {
               setEditingProduct(null)
               setShowModal(true)
             }}
-            className="btn btn-primary flex items-center gap-2"
+            className={`btn btn-primary flex items-center gap-2 ${isAndroid ? 'px-3 py-2' : ''}`}
           >
-            <Plus size={20} />
-            <span className="hidden sm:inline">Tambah</span> Produk
+            <Plus size={isAndroid ? 18 : 20} />
+            {isAndroid ? 'Tambah' : <><span className="hidden sm:inline">Tambah</span> Produk</>}
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4">
+      {/* Filters - Android optimized */}
+      <div className={`bg-white rounded-xl ${isAndroid ? 'p-3' : 'p-6'} shadow-sm border border-gray-100`}>
+        <div className={`flex flex-col ${isAndroid ? 'gap-2' : 'md:flex-row gap-4'}`}>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={isAndroid ? 18 : 20} />
             <input
               type="text"
               value={searchTerm}
@@ -590,37 +594,92 @@ export default function Products() {
                 setSearchTerm(e.target.value)
                 setCurrentPage(1)
               }}
-              placeholder="Cari produk (SKU, nama, barcode)..."
-              className="w-full pl-10 input"
+              placeholder="Cari produk..."
+              className={`w-full pl-10 input ${isAndroid ? 'text-sm py-2' : ''}`}
             />
           </div>
           <select
             value={selectedCategory}
             onChange={(e) => handleFilterChange(setSelectedCategory)(e.target.value)}
-            className="input w-full md:w-48"
+            className={`input ${isAndroid ? 'text-sm py-2' : 'w-full md:w-48'}`}
           >
             <option value="all">Semua Kategori</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          <select
-            value={selectedSource}
-            onChange={(e) => handleFilterChange(setSelectedSource)(e.target.value)}
-            className="input w-full md:w-52"
-          >
-            <option value="all">Semua ({products.length})</option>
-            <option value="local">Lokal ({localCount})</option>
-            <option value="marketplace">Marketplace ({marketplaceCount})</option>
-            {shopeeCount > 0 && <option value="shopee">↳ Shopee ({shopeeCount})</option>}
-            {lazadaCount > 0 && <option value="lazada">↳ Lazada ({lazadaCount})</option>}
-            {tokopediaCount > 0 && <option value="tokopedia">↳ Tokopedia ({tokopediaCount})</option>}
-            {tiktokCount > 0 && <option value="tiktok">↳ TikTok ({tiktokCount})</option>}
-          </select>
+          {/* Hide source filter on Android */}
+          {!isAndroid && (
+            <select
+              value={selectedSource}
+              onChange={(e) => handleFilterChange(setSelectedSource)(e.target.value)}
+              className="input w-full md:w-52"
+            >
+              <option value="all">Semua ({products.length})</option>
+              <option value="local">Lokal ({localCount})</option>
+              <option value="marketplace">Marketplace ({marketplaceCount})</option>
+              {shopeeCount > 0 && <option value="shopee">↳ Shopee ({shopeeCount})</option>}
+              {lazadaCount > 0 && <option value="lazada">↳ Lazada ({lazadaCount})</option>}
+              {tokopediaCount > 0 && <option value="tokopedia">↳ Tokopedia ({tokopediaCount})</option>}
+              {tiktokCount > 0 && <option value="tiktok">↳ TikTok ({tiktokCount})</option>}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* Products Table */}
+      {/* Products - Card view for Android, Table for Web */}
+      {isAndroid ? (
+        <div className="space-y-3">
+          {displayProducts.map((product) => (
+            <div 
+              key={product.id} 
+              className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 active:bg-gray-50"
+              onClick={() => {
+                setEditingProduct(product)
+                setShowModal(true)
+              }}
+            >
+              <div className="flex gap-3">
+                {/* Product Image */}
+                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  {product.image ? (
+                    <img 
+                      src={product.image} 
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package size={24} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                {/* Product Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">{product.name}</p>
+                  <p className="text-xs text-gray-500">{product.sku || product.code}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-primary font-bold">Rp {product.price?.toLocaleString('id-ID')}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      product.stock === 0 ? 'bg-red-100 text-red-700' :
+                      product.stock <= (product.minStock || 5) ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      Stok: {product.stock}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {displayProducts.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              Tidak ada produk ditemukan
+            </div>
+          )}
+        </div>
+      ) : (
+      /* Products Table - Web only */
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1031,6 +1090,7 @@ export default function Products() {
           </div>
         )}
       </div>
+      )}
 
       {/* Modals */}
       {showModal && (
