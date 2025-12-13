@@ -21,7 +21,7 @@ export default function Settings() {
   const [isAutoSyncing, setIsAutoSyncing] = useState(false)
   const [autoSyncStatus, setAutoSyncStatus] = useState(null)
   
-  const { users, user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin } = useAuthStore()
+  const { users, user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin, resetToDefaultAdmin } = useAuthStore()
   const { storeInfo, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore()
   const { products } = useProductStore()
   const { customers } = useCustomerStore()
@@ -887,6 +887,33 @@ export default function Settings() {
                     <UploadCloud size={20} />
                     Upload Backup
                   </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-2 border-dashed border-purple-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors">
+              <div className="flex flex-col items-center gap-4">
+                <div className="bg-purple-100 p-4 rounded-full">
+                  <User className="text-purple-600" size={32} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg mb-2 text-purple-700">Reset User ke Default</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Kembalikan user admin dengan semua permission
+                  </p>
+                  <button 
+                    onClick={() => {
+                      if (confirm('Reset user ke default? Anda akan login sebagai admin dengan semua permission.')) {
+                        resetToDefaultAdmin()
+                        alert('✅ User berhasil di-reset! Anda sekarang login sebagai Administrator.')
+                        window.location.reload()
+                      }
+                    }}
+                    className="btn bg-purple-600 hover:bg-purple-700 text-white inline-flex items-center gap-2"
+                  >
+                    <RefreshCw size={20} />
+                    Reset User
+                  </button>
                 </div>
               </div>
             </div>

@@ -337,6 +337,39 @@ export const useAuthStore = create(
       isAdmin: () => {
         const state = get()
         return state.user?.role === 'admin' || state.user?.permissions?.includes('all')
+      },
+
+      // Reset to default admin user
+      resetToDefaultAdmin: () => {
+        const defaultAdmin = {
+          id: 1,
+          username: 'admin',
+          password: hashPassword('admin123'),
+          name: 'Administrator',
+          role: 'admin',
+          permissions: ['all'],
+          isActive: true,
+          createdAt: '2024-01-01T00:00:00.000Z'
+        }
+        
+        const defaultCashier = {
+          id: 2,
+          username: 'kasir',
+          password: hashPassword('kasir123'),
+          name: 'Kasir 1',
+          role: 'cashier',
+          permissions: ['pos', 'products_view', 'customers_view'],
+          isActive: true,
+          createdAt: '2024-01-01T00:00:00.000Z'
+        }
+        
+        set({ 
+          users: [defaultAdmin, defaultCashier],
+          user: { ...defaultAdmin, password: undefined },
+          isAuthenticated: true
+        })
+        
+        return { success: true }
       }
     }),
     {
