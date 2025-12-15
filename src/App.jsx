@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
 import { FirebaseSyncProvider } from './hooks/useFirebaseSync'
 import './utils/forceReloadStores' // Load force reload utility
+import './utils/seedDummyData' // Load dummy data functions for testing
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
