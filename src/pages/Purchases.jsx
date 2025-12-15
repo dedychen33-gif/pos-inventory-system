@@ -4,7 +4,6 @@ import { usePurchaseStore } from '../store/purchaseStore'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import PullToRefresh from '../components/PullToRefresh'
 
 export default function Purchases() {
@@ -12,27 +11,6 @@ export default function Purchases() {
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
   const { purchases, suppliers, addPurchase, updatePurchase, deletePurchase, addSupplier, deleteSupplier } = usePurchaseStore()
-  
-  // Debug: fetch purchases from Supabase on mount
-  useEffect(() => {
-    const fetchPurchases = async () => {
-      if (!isSupabaseConfigured()) {
-        console.log('⚠️ Supabase not configured')
-        return
-      }
-      
-      console.log('🔍 Fetching purchases from Supabase...')
-      const { data, error } = await supabase.from('purchases').select('*')
-      
-      if (error) {
-        console.error('❌ Purchases fetch error:', error.message)
-      } else {
-        console.log('✅ Purchases from Supabase:', data?.length || 0, data)
-      }
-    }
-    
-    fetchPurchases()
-  }, [])
   const { products, updateStock } = useProductStore()
   const { user } = useAuthStore()
 

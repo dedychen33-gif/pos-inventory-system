@@ -14,6 +14,8 @@ import { useCustomerStore } from '../store/customerStore';
 import { useTransactionStore } from '../store/transactionStore';
 import { usePurchaseStore } from '../store/purchaseStore';
 import { useSalesOrderStore } from '../store/salesOrderStore';
+import { useExpenseStore } from '../store/expenseStore';
+import { useDebtStore } from '../store/debtStore';
 
 export function useFirebaseSync() {
   const [syncStatus, setSyncStatus] = useState({
@@ -31,6 +33,8 @@ export function useFirebaseSync() {
   const setTransactions = useTransactionStore(state => state.setTransactions);
   const { setSuppliers, setPurchases } = usePurchaseStore();
   const setSalesOrders = useSalesOrderStore(state => state.setSalesOrders);
+  const setExpenses = useExpenseStore(state => state.setExpenses);
+  const setDebts = useDebtStore(state => state.setDebts);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -166,6 +170,32 @@ export function useFirebaseSync() {
     });
     unsubscribers.current.push(unsubSalesOrders);
 
+    // Subscribe to Expenses
+    const unsubExpenses = firebaseDB.onValue('expenses', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const expenses = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`💸 Firebase: ${expenses.length} expenses synced`);
+        if (expenses.length > 0) setExpenses(expenses);
+      }
+    });
+    unsubscribers.current.push(unsubExpenses);
+
+    // Subscribe to Debts
+    const unsubDebts = firebaseDB.onValue('debts', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const debts = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`📋 Firebase: ${debts.length} debts synced`);
+        if (debts.length > 0) setDebts(debts);
+      }
+    });
+    unsubscribers.current.push(unsubDebts);
+
     setSyncStatus({
       isConnected: true,
       isSyncing: false,
@@ -180,7 +210,7 @@ export function useFirebaseSync() {
         if (typeof unsub === 'function') unsub();
       });
     };
-  }, [setProducts, setCustomers, setTransactions, setSuppliers, setPurchases, setSalesOrders]);
+  }, [setProducts, setCustomers, setTransactions, setSuppliers, setPurchases, setSalesOrders, setExpenses, setDebts]);
 
   return syncStatus;
 }

@@ -48,8 +48,9 @@ export default function Sales() {
     try {
       // Stok sudah dikurangi saat SO dibuat, jadi langsung catat transaksi
       
-      // Create transaction record
+      // Create transaction record with same orderNumber as Sales Order
       const transaction = {
+        id: sale.orderNumber || sale.id, // Use same orderNumber as SO
         items: sale.items.map(item => ({
           id: item.id,
           name: item.name,
@@ -70,7 +71,7 @@ export default function Sales() {
         cashierId: user?.id,
         source: 'sales_order',
         salesOrderId: sale.id,
-        notes: `Pembayaran SO: ${sale.id}`
+        notes: `Pembayaran SO: ${sale.orderNumber || sale.id}`
       }
       
       await addTransaction(transaction)
@@ -333,33 +334,35 @@ export default function Sales() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {salesOrders.map((sale) => (
+              {salesOrders.filter(sale => sale.items?.length > 0 || sale.total > 0).map((sale) => (
                 <tr key={sale.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap font-mono font-semibold">
                     {sale.orderNumber || sale.id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {new Date(sale.date).toLocaleDateString('id-ID')}
+                    {sale.date && !isNaN(new Date(sale.date).getTime()) 
+                      ? new Date(sale.date).toLocaleDateString('id-ID') 
+                      : '-'}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <User size={16} className="text-gray-400" />
-                      <span className="font-medium">{sale.customer.name}</span>
+                      <span className="font-medium">{sale.customer?.name || sale.customerName || '-'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Package size={16} className="text-gray-400" />
-                      <span>{sale.items.length} item</span>
+                      <span>{sale.items?.length || 0} item</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap font-semibold text-green-600">
-                    Rp {sale.total.toLocaleString('id-ID')}
+                    Rp {(sale.total || 0).toLocaleString('id-ID')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
                       <Calendar size={16} className="text-gray-400" />
-                      <span>{new Date(sale.dueDate).toLocaleDateString('id-ID')}</span>
+                      <span>{sale.dueDate && !isNaN(new Date(sale.dueDate).getTime()) ? new Date(sale.dueDate).toLocaleDateString('id-ID') : '-'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

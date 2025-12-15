@@ -24,7 +24,7 @@ import { useCustomerStore } from '../store/customerStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useAuthStore } from '../store/authStore'
-import { supabase } from '../lib/supabase'
+import { firebaseDB } from '../lib/firebase'
 
 function POSContent() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -66,69 +66,64 @@ function POSContent() {
   const { storeInfo } = useSettingsStore()
   const { user } = useAuthStore()
 
-  // Listen for remote barcode scans from Android
+  // Listen for remote barcode scans from Android via Firebase
   useEffect(() => {
     if (!remoteScanEnabled) return
 
-    const channel = supabase
-      .channel('barcode-scans')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'barcode_scans'
-        },
-        async (payload) => {
-          const scan = payload.new
-          if (!scan.processed) {
-            // Find product by barcode
-            const product = products.find(p => 
-              p.barcode === scan.barcode || 
-              p.code === scan.barcode || 
-              p.sku === scan.barcode
-            )
+    // Listen to Firebase barcode_scans
+    const unsubscribe = firebaseDB.onValue('barcode_scans', async (data) => {
+      if (!data) return
+      
+      // Find unprocessed scans
+      const scans = Object.entries(data).map(([id, scan]) => ({ ...scan, id }))
+      const unprocessedScans = scans.filter(s => !s.processed)
+      
+      for (const scan of unprocessedScans) {
+        // Find product by barcode
+        const product = products.find(p => 
+          p.barcode === scan.barcode || 
+          p.code === scan.barcode || 
+          p.sku === scan.barcode
+        )
+        
+        if (product) {
+          // Add to cart
+          if (product.stock > 0) {
+            addToCart(product)
+            setLastRemoteScan({
+              barcode: scan.barcode,
+              product: product.name,
+              device: scan.device_name,
+              time: new Date().toLocaleTimeString()
+            })
             
-            if (product) {
-              // Add to cart
-              if (product.stock > 0) {
-                addToCart(product)
-                setLastRemoteScan({
-                  barcode: scan.barcode,
-                  product: product.name,
-                  device: scan.device_name,
-                  time: new Date().toLocaleTimeString()
-                })
-                
-                // Play success sound (optional)
-                try {
-                  const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2LdV1PU2V4jZ+jnIxvVEJIX3mOnaCXhWlNOT9Wd46hpJuGZkQwPFd0j6OlloBcOiotUXORpqmhimE/LzNTdJOnq6OKXzgoLVJ1k6mupYlaPyctUneVq7CnilY4Ji5VeZitsKmIUjYmL1h8m6+xqYdNMyYwW4CfsrOpg0gvJjFehKKzsqV9QysmM2OIpbSypXY+JyU2aI2otbKicDkkJDlukqu2sqBqNSMjPHOWrre0nWQxIiJAfpqxuLSZXSwgIkWDn7S4tJRVKR4hSoiltbi0kE4lHSBOjqm3uLSMRyIbIFOTrLi4tIY/HxofWJivuLi0gDgdGR5dnbG4uLR5MRoYHmKhsri4tHIrFxYeZ6WzuLhzLA==')
-                  audio.volume = 0.3
-                  audio.play()
-                } catch {}
-              }
-            } else {
-              setLastRemoteScan({
-                barcode: scan.barcode,
-                product: null,
-                device: scan.device_name,
-                time: new Date().toLocaleTimeString(),
-                error: 'Produk tidak ditemukan'
-              })
-            }
-            
-            // Mark as processed
-            await supabase
-              .from('barcode_scans')
-              .update({ processed: true, processed_at: new Date().toISOString() })
-              .eq('id', scan.id)
+            // Play success sound (optional)
+            try {
+              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp2LdV1PU2V4jZ+jnIxvVEJIX3mOnaCXhWlNOT9Wd46hpJuGZkQwPFd0j6OlloBcOiotUXORpqmhimE/LzNTdJOnq6OKXzgoLVJ1k6mupYlaPyctUneVq7CnilY4Ji5VeZitsKmIUjYmL1h8m6+xqYdNMyYwW4CfsrOpg0gvJjFehKKzsqV9QysmM2OIpbSypXY+JyU2aI2otbKicDkkJDlukqu2sqBqNSMjPHOWrre0nWQxIiJAfpqxuLSZXSwgIkWDn7S4tJRVKR4hSoiltbi0kE4lHSBOjqm3uLSMRyIbIFOTrLi4tIY/HxofWJivuLi0gDgdGR5dnbG4uLR5MRoYHmKhsri4tHIrFxYeZ6WzuLhzLA==')
+              audio.volume = 0.3
+              audio.play()
+            } catch {}
           }
+        } else {
+          setLastRemoteScan({
+            barcode: scan.barcode,
+            product: null,
+            device: scan.device_name,
+            time: new Date().toLocaleTimeString(),
+            error: 'Produk tidak ditemukan'
+          })
         }
-      )
-      .subscribe()
+        
+        // Mark as processed
+        await firebaseDB.update(`barcode_scans/${scan.id}`, { 
+          processed: true, 
+          processed_at: new Date().toISOString() 
+        })
+      }
+    })
 
     return () => {
-      supabase.removeChannel(channel)
+      if (typeof unsubscribe === 'function') unsubscribe()
     }
   }, [remoteScanEnabled, products, addToCart])
 
@@ -193,9 +188,11 @@ function POSContent() {
       }
 
       // Save transaction
-      const savedTransaction = await addTransaction(transaction)
+      const result = await addTransaction(transaction)
       
-      setLastTransaction(savedTransaction)
+      // addTransaction returns { success, transaction } or { success, error }
+      // Use the original transaction object which has all the data
+      setLastTransaction(transaction)
       setShowPaymentModal(false)
       setShowReceiptModal(true)
       clearCart()

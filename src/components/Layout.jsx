@@ -21,12 +21,13 @@ import {
   RefreshCw,
   Bell,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Wallet,
+  CreditCard
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useProductStore } from '../store/productStore'
 import { isAndroid } from '../utils/platform'
-import { isSupabaseConfigured } from '../lib/supabase'
 
 // Filter menu items based on platform
 const allMenuItems = [
@@ -39,6 +40,8 @@ const allMenuItems = [
   { path: '/sales', icon: TrendingUp, label: 'Penjualan', permission: 'sales' },
   { path: '/returns', icon: RotateCcw, label: 'Barang Retur', permission: 'sales' },
   { path: '/customers', icon: Users, label: 'Pelanggan', permission: 'customers' },
+  { path: '/expenses', icon: Wallet, label: 'Pengeluaran', permission: 'reports' },
+  { path: '/debts', icon: CreditCard, label: 'Hutang Piutang', permission: 'reports' },
   { path: '/reports', icon: FileText, label: 'Laporan', permission: 'reports' },
   { path: '/settings', icon: Settings, label: 'Pengaturan', permission: 'settings' },
 ]
@@ -246,19 +249,15 @@ export default function Layout({ children }) {
                 ? 'Syncing...' 
                 : syncStatus.isOnline 
                   ? `Cloud Sync Active${syncStatus.lastSync ? ` - Last: ${new Date(syncStatus.lastSync).toLocaleTimeString()}` : ''}`
-                  : isSupabaseConfigured() 
-                    ? 'Connecting to cloud...'
-                    : 'Offline Mode'
+                  : 'Connecting to cloud...'
             }
           >
             {syncStatus.isSyncing ? (
               <RefreshCw size={20} className="text-yellow-400 animate-spin" />
             ) : syncStatus.isOnline ? (
               <Cloud size={20} className="text-green-400" />
-            ) : isSupabaseConfigured() ? (
-              <Cloud size={20} className="text-yellow-400 animate-pulse" />
             ) : (
-              <CloudOff size={20} className="text-gray-400" />
+              <Cloud size={20} className="text-yellow-400 animate-pulse" />
             )}
           </div>
         </div>

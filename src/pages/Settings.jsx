@@ -9,9 +9,6 @@ import { usePurchaseStore } from '../store/purchaseStore'
 import { useCartStore } from '../store/cartStore'
 import { useSalesOrderStore } from '../store/salesOrderStore'
 import { useAuditStore, AUDIT_ACTIONS } from '../store/auditStore'
-import { isSupabaseConfigured } from '../lib/supabase'
-import { getSyncStatus, syncLocalToSupabase, deleteAllSupabaseData } from '../services/supabaseSync'
-import { toggleAutoSync, runAutoSync, getAutoSyncStatus } from '../services/autoSyncService'
 
 export default function Settings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -36,49 +33,16 @@ export default function Settings() {
   const [stockFormData, setStockFormData] = useState(stockSettings || { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 })
   const [waFormData, setWaFormData] = useState({ number: whatsappNumber || '', message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' })
 
-  // Load auto-sync settings on mount
-  useEffect(() => {
-    try {
-      const status = getAutoSyncStatus()
-      setAutoSyncEnabled(status?.isEnabled || false)
-      setAutoSyncStatus(status)
-    } catch (err) {
-      console.error('Error loading auto-sync status:', err)
-      setAutoSyncEnabled(false)
-    }
-  }, [])
-
-  // Handle auto-sync toggle
-  const handleAutoSyncToggle = (enabled) => {
-    setAutoSyncEnabled(enabled)
-    toggleAutoSync(enabled)
-    setAutoSyncStatus(getAutoSyncStatus())
-    
-    if (enabled) {
-      alert('✅ Auto Sync diaktifkan! Sinkronisasi akan berjalan otomatis saat login dan setiap 1 jam.')
-    } else {
-      alert('⏹️ Auto Sync dinonaktifkan.')
-    }
+  // Helper function to check if Supabase is configured (now returns false since we migrated to Firebase)
+  const isSupabaseConfigured = () => {
+    return false // Supabase has been removed, using Firebase now
   }
 
-  // Handle manual auto-sync
-  const handleManualSync = async () => {
-    setIsAutoSyncing(true)
-    try {
-      const result = await runAutoSync()
-      if (result.success) {
-        alert('✅ Sinkronisasi manual berhasil!')
-        setAutoSyncStatus(getAutoSyncStatus())
-      } else {
-        alert('❌ Sinkronisasi gagal: ' + (result.error || 'Unknown error'))
-      }
-    } catch (error) {
-      alert('❌ Sinkronisasi gagal: ' + error.message)
-    } finally {
-      setIsAutoSyncing(false)
-    }
+  // Placeholder for deleteAllSupabaseData (no longer needed)
+  const deleteAllSupabaseData = async () => {
+    return { success: true }
   }
-
+  
   const handleBackupDatabase = () => {
     // Get returns from localStorage
     const returnsData = JSON.parse(localStorage.getItem('returns-storage') || '{}')
@@ -504,7 +468,7 @@ export default function Settings() {
               <label className="block text-sm font-medium mb-2">Nama Toko</label>
               <input 
                 type="text" 
-                value={formData.name}
+                value={formData?.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="input" 
               />
@@ -514,7 +478,7 @@ export default function Settings() {
               <textarea 
                 className="input" 
                 rows="2"
-                value={formData.address}
+                value={formData?.address || ''}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               />
             </div>
@@ -522,7 +486,7 @@ export default function Settings() {
               <label className="block text-sm font-medium mb-2">Telepon</label>
               <input 
                 type="tel"
-                value={formData.phone}
+                value={formData?.phone || ''}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="input" 
               />
@@ -531,7 +495,7 @@ export default function Settings() {
               <label className="block text-sm font-medium mb-2">Email</label>
               <input 
                 type="email"
-                value={formData.email}
+                value={formData?.email || ''}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="input" 
               />

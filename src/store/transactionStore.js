@@ -11,11 +11,36 @@ export const useTransactionStore = create(
       // Direct setter for Firebase realtime sync
       setTransactions: (transactions) => set({ transactions }),
 
+      // Generate transaction ID with format: DDMMYY-HHMM-0001 (using - instead of / for Firebase compatibility)
+      generateTransactionId: () => {
+        const now = new Date()
+        const dd = String(now.getDate()).padStart(2, '0')
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const yy = String(now.getFullYear()).slice(-2)
+        const hh = String(now.getHours()).padStart(2, '0')
+        const min = String(now.getMinutes()).padStart(2, '0')
+        
+        const datePrefix = `${dd}${mm}${yy}-${hh}${min}`
+        
+        // Get today's transactions to determine sequence number
+        const transactions = get().transactions || []
+        const todayPrefix = `${dd}${mm}${yy}`
+        const todayTransactions = transactions.filter(t => {
+          if (!t.id) return false
+          return t.id.startsWith(todayPrefix)
+        })
+        
+        const sequence = String(todayTransactions.length + 1).padStart(4, '0')
+        return `${datePrefix}-${sequence}`
+      },
+
       // Add transaction - save to Firebase first
       addTransaction: async (transaction) => {
+        const transactionId = get().generateTransactionId()
         const newTransaction = {
           ...transaction,
-          id: transaction.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
+          id: transaction.id || transactionId,
+          status: transaction.status || 'completed',
           date: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()

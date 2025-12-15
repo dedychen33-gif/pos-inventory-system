@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
 import { FirebaseSyncProvider } from './hooks/useFirebaseSync'
-import './utils/testDummyData' // Load test functions globally
 import './utils/forceReloadStores' // Load force reload utility
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -18,6 +17,8 @@ import Customers from './pages/Customers'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 import RemoteScanner from './pages/RemoteScanner'
+import Expenses from './pages/Expenses'
+import Debts from './pages/Debts'
 
 function App() {
   const { isAuthenticated, user, resetToDefaultAdmin } = useAuthStore()
@@ -55,6 +56,8 @@ function App() {
                     <Route path="/returns" element={<Returns />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/reports" element={<Reports />} />
+                    <Route path="/expenses" element={<Expenses />} />
+                    <Route path="/debts" element={<Debts />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

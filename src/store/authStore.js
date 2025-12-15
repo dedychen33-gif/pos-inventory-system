@@ -2,32 +2,23 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import CryptoJS from 'crypto-js'
 import { useAuditStore, AUDIT_ACTIONS } from './auditStore'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { firebaseDB } from '../lib/firebase'
 
-// Sync user to Supabase cloud
+// Sync user to Firebase cloud
 const syncUserToCloud = async (user) => {
-  if (!isSupabaseConfigured()) return
-  
   try {
-    const { error } = await supabase
-      .from('app_users')
-      .upsert({
-        id: user.id,
-        username: user.username,
-        password_hash: user.password,
-        name: user.name,
-        role: user.role,
-        permissions: user.permissions,
-        is_active: user.isActive,
-        created_at: user.createdAt,
-        updated_at: user.updatedAt || new Date().toISOString()
-      }, { onConflict: 'id' })
-    
-    if (error) {
-      console.error('❌ Failed to sync user to cloud:', error.message)
-    } else {
-      console.log('✅ User synced to cloud:', user.username)
-    }
+    await firebaseDB.set(`app_users/${user.id}`, {
+      id: user.id,
+      username: user.username,
+      password_hash: user.password,
+      name: user.name,
+      role: user.role,
+      permissions: user.permissions,
+      is_active: user.isActive,
+      created_at: user.createdAt,
+      updated_at: user.updatedAt || new Date().toISOString()
+    })
+    console.log('✅ User synced to Firebase:', user.username)
   } catch (err) {
     console.error('❌ User sync error:', err.message)
   }

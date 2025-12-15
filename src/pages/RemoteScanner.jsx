@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { BarcodeScanner, BarcodeFormat } from '@capacitor-mlkit/barcode-scanning'
 import { Device } from '@capacitor/device'
 import { X, Flashlight, FlashlightOff, Wifi, WifiOff, CheckCircle, Package } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { firebaseDB } from '../lib/firebase'
 import { useProductStore } from '../store/productStore'
 
 export default function RemoteScanner() {
@@ -31,7 +31,7 @@ export default function RemoteScanner() {
       })
     })
 
-    // Check Supabase connection
+    // Check Firebase connection
     checkConnection()
 
     return () => {
@@ -41,8 +41,8 @@ export default function RemoteScanner() {
 
   const checkConnection = async () => {
     try {
-      const { error } = await supabase.from('barcode_scans').select('id').limit(1)
-      setIsConnected(!error)
+      const result = await firebaseDB.get('barcode_scans')
+      setIsConnected(result.success)
     } catch {
       setIsConnected(false)
     }
@@ -62,17 +62,20 @@ export default function RemoteScanner() {
     if (appRoot) appRoot.style.visibility = 'visible'
   }
 
-  const sendScanToSupabase = async (barcode) => {
+  const sendScanToFirebase = async (barcode) => {
     try {
-      const { error } = await supabase.from('barcode_scans').insert({
+      const scanId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const result = await firebaseDB.set(`barcode_scans/${scanId}`, {
+        id: scanId,
         barcode,
         device_id: deviceInfo.id,
         device_name: deviceInfo.name,
         session_id: sessionId,
-        processed: false
+        processed: false,
+        created_at: new Date().toISOString()
       })
       
-      if (error) throw error
+      if (!result.success) throw new Error(result.error)
       
       // Find product info
       const product = products.find(p => 
@@ -112,8 +115,8 @@ export default function RemoteScanner() {
           // Vibrate on scan
           if (navigator.vibrate) navigator.vibrate(100)
           
-          // Send to Supabase
-          await sendScanToSupabase(result.barcode.rawValue)
+          // Send to Firebase
+          await sendScanToFirebase(result.barcode.rawValue)
         }
       })
 

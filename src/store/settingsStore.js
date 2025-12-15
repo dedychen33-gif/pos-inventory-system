@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { firebaseDB } from '../lib/firebase'
 
 export const useSettingsStore = create(
   persist(
@@ -32,11 +32,10 @@ export const useSettingsStore = create(
           storeInfo: { ...state.storeInfo, ...info }
         }))
         
-        // Sync to Supabase
-        if (isSupabaseConfigured()) {
+        // Sync to Firebase
+        try {
           const currentInfo = { ...get().storeInfo, ...info }
-          const { error } = await supabase.from('settings').upsert({
-            id: 'default',
+          await firebaseDB.set('settings/default', {
             store_name: currentInfo.name || '',
             store_address: currentInfo.address || '',
             store_phone: currentInfo.phone || '',
@@ -45,13 +44,10 @@ export const useSettingsStore = create(
             tax_percent: currentInfo.taxPercent || 11,
             receipt_footer: currentInfo.receiptFooter || '',
             updated_at: new Date().toISOString()
-          }, { onConflict: 'id' })
-          
-          if (error) {
-            console.error('❌ Error saving settings to Supabase:', error.message)
-          } else {
-            console.log('✅ Settings saved to Supabase')
-          }
+          })
+          console.log('✅ Settings saved to Firebase')
+        } catch (error) {
+          console.error('❌ Error saving settings to Firebase:', error.message)
         }
       },
 
