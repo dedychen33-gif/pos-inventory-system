@@ -2,53 +2,6 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { firebaseDB } from '../lib/firebase'
 
-// Helper functions outside Zustand for proper async handling
-export const addCategoryToFirebase = async (currentCategories, newCategory) => {
-  try {
-    if (currentCategories.includes(newCategory)) {
-      return { success: false, error: 'Category already exists' };
-    }
-    
-    const newCategories = [...currentCategories, newCategory];
-    const result = await firebaseDB.set('categories', newCategories);
-    
-    if (result.success) {
-      console.log('✅ Category added to Firebase:', newCategory);
-      return { success: true, categories: newCategories };
-    } else {
-      console.error('❌ Firebase set failed:', result.error);
-      return { success: false, error: result.error || 'Firebase save failed' };
-    }
-  } catch (error) {
-    console.error('❌ addCategory error:', error);
-    return { success: false, error: error.message || 'Unknown error' };
-  }
-};
-
-export const removeCategoryFromFirebase = async (currentCategories, categoryToRemove) => {
-  try {
-    console.log('🗑️ removeCategoryFromFirebase called for:', categoryToRemove);
-    console.log('📋 Current categories:', currentCategories);
-    
-    const newCategories = currentCategories.filter(c => c !== categoryToRemove);
-    console.log('📋 New categories after filter:', newCategories);
-    
-    const result = await firebaseDB.set('categories', newCategories);
-    console.log('📤 Firebase set result:', result);
-    
-    if (result.success) {
-      console.log('✅ Category removed from Firebase:', categoryToRemove);
-      return { success: true, categories: newCategories };
-    } else {
-      console.error('❌ Firebase set failed:', result.error);
-      return { success: false, error: result.error || 'Firebase save failed' };
-    }
-  } catch (error) {
-    console.error('❌ removeCategory error:', error);
-    return { success: false, error: error.message || 'Unknown error' };
-  }
-};
-
 export const useProductStore = create(
   persist(
     (set, get) => ({
@@ -64,24 +17,6 @@ export const useProductStore = create(
       setCategories: (categories) => set({ categories }),
       setUnits: (units) => set({ units }),
       setStockHistory: (stockHistory) => set({ stockHistory }),
-
-      // Add category - wrapper for Firebase helper
-      addCategory: async (category) => {
-        const result = await addCategoryToFirebase(get().categories, category);
-        if (result.success) {
-          set({ categories: result.categories });
-        }
-        return result;
-      },
-
-      // Remove category - wrapper for Firebase helper
-      removeCategory: async (category) => {
-        const result = await removeCategoryFromFirebase(get().categories, category);
-        if (result.success) {
-          set({ categories: result.categories });
-        }
-        return result;
-      },
 
       // Add product - save to Firebase first
       addProduct: async (product) => {
@@ -206,69 +141,15 @@ export const useProductStore = create(
           updatedAt: new Date().toISOString()
         })
 
-        // Always update local state regardless of Firebase result
-        set((state) => ({
-          products: state.products.map(p => 
-            p.id === id ? { ...p, stock: newStock, updatedAt: new Date().toISOString() } : p
-          ),
-          stockHistory: [historyEntry, ...state.stockHistory].slice(0, 1000)
-        }))
-
         if (result.success) {
+          // Update local stock history
+          set((state) => ({
+            stockHistory: [historyEntry, ...state.stockHistory].slice(0, 1000)
+          }))
           return { success: true, oldStock, newStock, change }
         }
 
-        // Return success for local update even if Firebase fails
-        console.warn('Firebase update failed but local state updated')
-        return { success: true, oldStock, newStock, change }
-      },
-
-      // Update damaged stock (stok barang rusak)
-      updateDamagedStock: async (id, quantity, type = 'add', note = '') => {
-        const product = get().products.find(p => p.id === id)
-        if (!product) return { success: false, error: 'Product not found' }
-
-        const oldDamagedStock = product.damagedStock || 0
-        let newDamagedStock = oldDamagedStock
-        
-        if (type === 'add') newDamagedStock += quantity
-        else if (type === 'subtract') newDamagedStock -= quantity
-        else newDamagedStock = quantity
-        
-        newDamagedStock = Math.max(0, newDamagedStock)
-
-        // Record stock history
-        const historyEntry = {
-          id: Date.now().toString(),
-          productId: id,
-          productName: product.name,
-          productSku: product.sku || product.code,
-          oldStock: oldDamagedStock,
-          newStock: newDamagedStock,
-          change: newDamagedStock - oldDamagedStock,
-          type: 'damaged_return',
-          note,
-          createdAt: new Date().toISOString()
-        }
-
-        // Update in Firebase
-        const result = await firebaseDB.update(`products/${id}`, { 
-          damagedStock: newDamagedStock,
-          updatedAt: new Date().toISOString()
-        })
-
-        if (result.success) {
-          // Update local products and stock history
-          set((state) => ({
-            products: state.products.map(p => 
-              p.id === id ? { ...p, damagedStock: newDamagedStock } : p
-            ),
-            stockHistory: [historyEntry, ...state.stockHistory].slice(0, 1000)
-          }))
-          return { success: true, oldDamagedStock, newDamagedStock }
-        }
-
-        return { success: false, error: 'Failed to update damaged stock' }
+        return { success: false, error: 'Failed to update stock' }
       },
 
       // Bulk update stock

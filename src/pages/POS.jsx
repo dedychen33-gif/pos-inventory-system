@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Component } from 'react'
 import { 
   Search, 
   Trash2, 
@@ -26,7 +26,7 @@ import { useSettingsStore } from '../store/settingsStore'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../lib/supabase'
 
-export default function POS() {
+function POSContent() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -132,7 +132,7 @@ export default function POS() {
     }
   }, [remoteScanEnabled, products, addToCart])
 
-  const filteredProducts = products.filter((p) =>
+  const filteredProducts = (products || []).filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.barcode?.includes(searchTerm)
@@ -185,7 +185,11 @@ export default function POS() {
 
       // Update stock with history tracking (reason: 'sale')
       for (const item of cartItems) {
-        await updateStock(item.id, item.quantity, 'subtract', 'sale', `Penjualan`, user?.id)
+        try {
+          await updateStock(item.id, item.quantity, 'subtract', 'sale', `Penjualan`, user?.id)
+        } catch (stockError) {
+          console.warn('Stock update error for item:', item.id, stockError)
+        }
       }
 
       // Save transaction
@@ -198,7 +202,7 @@ export default function POS() {
       setCashAmount('')
     } catch (error) {
       console.error('Transaction error:', error)
-      alert('Gagal memproses transaksi: ' + error.message)
+      alert('Gagal memproses transaksi: ' + (error?.message || 'Unknown error'))
     } finally {
       setIsProcessing(false)
     }
@@ -338,7 +342,7 @@ export default function POS() {
                   <p className="text-sm text-gray-600 mb-2">{product.code}</p>
                   <div className="flex items-center justify-between">
                     <p className="text-lg font-bold text-primary">
-                      Rp {product.price.toLocaleString('id-ID')}
+                      Rp {(product.price || 0).toLocaleString('id-ID')}
                     </p>
                     <p className={`text-sm ${product.stock > 10 ? 'text-green-600' : 'text-orange-600'}`}>
                       Stock: {product.stock}
@@ -378,13 +382,13 @@ export default function POS() {
               </div>
             </div>
           ) : (
-            cartItems.map((item) => (
+            (cartItems || []).map((item) => (
               <div key={item.id} className="p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900">{item.name}</h4>
                     <p className="text-sm text-gray-600">
-                      Rp {item.price.toLocaleString('id-ID')} x {item.quantity}
+                      Rp {(item.price || 0).toLocaleString('id-ID')} x {item.quantity}
                     </p>
                   </div>
                   <button
@@ -413,7 +417,7 @@ export default function POS() {
                     </button>
                   </div>
                   <p className="font-bold text-gray-900">
-                    Rp {(item.price * item.quantity).toLocaleString('id-ID')}
+                    Rp {((item.price || 0) * (item.quantity || 0)).toLocaleString('id-ID')}
                   </p>
                 </div>
               </div>
@@ -425,22 +429,22 @@ export default function POS() {
         <div className="p-4 border-t space-y-3">
           <div className="flex items-center justify-between text-gray-600">
             <span>Subtotal</span>
-            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+            <span>Rp {(subtotal || 0).toLocaleString('id-ID')}</span>
           </div>
           
           <div className="flex items-center justify-between text-gray-600">
             <span>Diskon</span>
-            <span className="text-red-600">- Rp {discountAmount.toLocaleString('id-ID')}</span>
+            <span className="text-red-600">- Rp {(discountAmount || 0).toLocaleString('id-ID')}</span>
           </div>
           
           <div className="flex items-center justify-between text-gray-600">
             <span>Pajak (11%)</span>
-            <span>Rp {tax.toLocaleString('id-ID')}</span>
+            <span>Rp {(tax || 0).toLocaleString('id-ID')}</span>
           </div>
           
           <div className="flex items-center justify-between text-xl font-bold pt-3 border-t">
             <span>Total</span>
-            <span className="text-primary">Rp {total.toLocaleString('id-ID')}</span>
+            <span className="text-primary">Rp {(total || 0).toLocaleString('id-ID')}</span>
           </div>
         </div>
 
@@ -476,7 +480,7 @@ export default function POS() {
       {showCustomerModal && (
         <Modal onClose={() => setShowCustomerModal(false)} title="Pilih Pelanggan">
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {customers.map((customer) => (
+            {(customers || []).map((customer) => (
               <button
                 key={customer.id}
                 onClick={() => {
@@ -506,7 +510,7 @@ export default function POS() {
           <div className="space-y-4">
             <div>
               <p className="text-3xl font-bold text-center text-primary mb-6">
-                Rp {total.toLocaleString('id-ID')}
+                Rp {(total || 0).toLocaleString('id-ID')}
               </p>
             </div>
 
@@ -612,7 +616,7 @@ export default function POS() {
               </div>
               <div className="flex justify-between">
                 <span>Tanggal:</span>
-                <span>{new Date(lastTransaction.date).toLocaleString('id-ID')}</span>
+                <span>{lastTransaction?.date ? new Date(lastTransaction.date).toLocaleString('id-ID') : new Date().toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between">
                 <span>Kasir:</span>
@@ -621,14 +625,14 @@ export default function POS() {
             </div>
 
             <div className="border-t border-b py-3 space-y-2">
-              {lastTransaction.items.map((item, index) => (
+              {(lastTransaction?.items || []).map((item, index) => (
                 <div key={index}>
                   <div className="flex justify-between">
                     <span className="font-medium">{item.name}</span>
-                    <span>Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                    <span>Rp {((item.price || 0) * (item.quantity || 0)).toLocaleString('id-ID')}</span>
                   </div>
                   <div className="text-sm text-gray-600">
-                    {item.quantity} x Rp {item.price.toLocaleString('id-ID')}
+                    {item.quantity} x Rp {(item.price || 0).toLocaleString('id-ID')}
                   </div>
                 </div>
               ))}
@@ -637,30 +641,30 @@ export default function POS() {
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>Rp {lastTransaction.subtotal.toLocaleString('id-ID')}</span>
+                <span>Rp {(lastTransaction?.subtotal || 0).toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between text-red-600">
                 <span>Diskon:</span>
-                <span>- Rp {lastTransaction.discount.toLocaleString('id-ID')}</span>
+                <span>- Rp {(lastTransaction?.discount || 0).toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between">
                 <span>Pajak (11%):</span>
-                <span>Rp {lastTransaction.tax.toLocaleString('id-ID')}</span>
+                <span>Rp {(lastTransaction?.tax || 0).toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between text-lg font-bold pt-2 border-t">
                 <span>Total:</span>
-                <span>Rp {lastTransaction.total.toLocaleString('id-ID')}</span>
+                <span>Rp {(lastTransaction?.total || 0).toLocaleString('id-ID')}</span>
               </div>
               
               {lastTransaction.paymentMethod === 'cash' && (
                 <>
                   <div className="flex justify-between">
                     <span>Bayar:</span>
-                    <span>Rp {lastTransaction.cashAmount.toLocaleString('id-ID')}</span>
+                    <span>Rp {(lastTransaction?.cashAmount || 0).toLocaleString('id-ID')}</span>
                   </div>
                   <div className="flex justify-between font-semibold">
                     <span>Kembali:</span>
-                    <span>Rp {lastTransaction.change.toLocaleString('id-ID')}</span>
+                    <span>Rp {(lastTransaction?.change || 0).toLocaleString('id-ID')}</span>
                   </div>
                 </>
               )}
@@ -702,5 +706,50 @@ function Modal({ children, onClose, title }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Error Boundary (must be defined before use)
+class POSErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('POS Error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex items-center justify-center bg-gray-100">
+          <div className="bg-white p-8 rounded-xl shadow-lg max-w-md text-center">
+            <h2 className="text-xl font-bold text-red-600 mb-4">Terjadi Kesalahan</h2>
+            <p className="text-gray-600 mb-4">{this.state.error?.message || 'Unknown error'}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="btn btn-primary"
+            >
+              Muat Ulang Halaman
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// Main export with Error Boundary
+export default function POS() {
+  return (
+    <POSErrorBoundary>
+      <POSContent />
+    </POSErrorBoundary>
   )
 }

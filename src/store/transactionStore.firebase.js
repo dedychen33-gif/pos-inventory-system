@@ -16,7 +16,6 @@ export const useTransactionStore = create(
         const newTransaction = {
           ...transaction,
           id: transaction.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
-          date: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }

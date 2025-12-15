@@ -90,18 +90,38 @@ export default function Products() {
   const [syncingProduct, setSyncingProduct] = useState(null)
   const [isSyncingToShopee, setIsSyncingToShopee] = useState(false)
   
-  const { products, categories, addProduct, updateProduct, deleteProduct, syncLocalToCloud, isSyncing } = useProductStore()
+  const { products, categories, addProduct, updateProduct, deleteProduct, isSyncing } = useProductStore()
   const { user } = useAuthStore()
   const { stores } = useMarketplaceStore()
 
-  // Handle sync to cloud
+  // Handle sync to cloud (upload local to Firebase)
   const handleSyncToCloud = async () => {
-    if (confirm('Upload semua data produk lokal ke Cloud (Supabase)? Data di cloud dengan ID sama akan di-update.')) {
-      const result = await syncLocalToCloud()
-      if (result.success) {
-        alert(result.message)
+    if (confirm('Upload semua data produk lokal ke Firebase? Data akan disinkronkan ke semua device.')) {
+      if (window.migrateToFirebase) {
+        const result = await window.migrateToFirebase()
+        if (result.success) {
+          alert(`Berhasil upload ${result.count} item ke Firebase!`)
+        } else {
+          alert('Gagal sync: ' + result.error)
+        }
       } else {
-        alert('Gagal sync: ' + result.error)
+        alert('Fungsi migrateToFirebase tidak tersedia')
+      }
+    }
+  }
+
+  // Handle download from cloud (force sync cloud to local)
+  const handleDownloadFromCloud = async () => {
+    if (confirm('Download semua data dari Cloud? Data lokal akan di-REPLACE dengan data dari Cloud.')) {
+      if (window.__forceSync) {
+        const result = await window.__forceSync()
+        if (result.success) {
+          alert('✅ Berhasil download semua data dari Cloud!')
+        } else {
+          alert('❌ Gagal download: ' + (result.error || 'Unknown error'))
+        }
+      } else {
+        alert('❌ Force sync tidak tersedia. Coba refresh halaman.')
       }
     }
   }
@@ -253,31 +273,38 @@ export default function Products() {
     setShowBarcodeModal(true)
   }
 
-  const filteredProducts = products.filter((p) => {
-    // Show all products including marketplace products (synced to local storage)
-    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.code && p.code.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchCategory = selectedCategory === 'all' || p.category === selectedCategory
-    
-    // Filter by source
-    let matchSource = selectedSource === 'all'
-    if (selectedSource === 'local') {
-      matchSource = !['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(p.source)
-    } else if (selectedSource === 'marketplace') {
-      matchSource = ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(p.source)
-    } else if (selectedSource === 'shopee') {
-      matchSource = p.source === 'shopee'
-    } else if (selectedSource === 'lazada') {
-      matchSource = p.source === 'lazada'
-    } else if (selectedSource === 'tokopedia') {
-      matchSource = p.source === 'tokopedia'
-    } else if (selectedSource === 'tiktok') {
-      matchSource = p.source === 'tiktok'
-    }
-    
-    return matchSearch && matchCategory && matchSource
-  })
+  const filteredProducts = products
+    .filter((p) => {
+      // Show all products including marketplace products (synced to local storage)
+      const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.code && p.code.toLowerCase().includes(searchTerm.toLowerCase()))
+      const matchCategory = selectedCategory === 'all' || p.category === selectedCategory
+      
+      // Filter by source
+      let matchSource = selectedSource === 'all'
+      if (selectedSource === 'local') {
+        matchSource = !['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(p.source)
+      } else if (selectedSource === 'marketplace') {
+        matchSource = ['shopee', 'lazada', 'tokopedia', 'tiktok'].includes(p.source)
+      } else if (selectedSource === 'shopee') {
+        matchSource = p.source === 'shopee'
+      } else if (selectedSource === 'lazada') {
+        matchSource = p.source === 'lazada'
+      } else if (selectedSource === 'tokopedia') {
+        matchSource = p.source === 'tokopedia'
+      } else if (selectedSource === 'tiktok') {
+        matchSource = p.source === 'tiktok'
+      }
+      
+      return matchSearch && matchCategory && matchSource
+    })
+    // Sort: newest first (by createdAt or updatedAt)
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.created_at || a.updatedAt || 0);
+      const dateB = new Date(b.createdAt || b.created_at || b.updatedAt || 0);
+      return dateB - dateA; // Descending - newest first
+    })
 
   // Group products by parent (for variants - both local and Shopee)
   const groupedProducts = filteredProducts.reduce((acc, product) => {
@@ -509,13 +536,13 @@ export default function Products() {
           <p className="text-gray-600 text-sm mt-1">{products.length} produk tersimpan</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Sync Cloud Button - Hide on Android */}
+          {/* Auto-sync indicator - data otomatis sync dari Supabase */}
           {!isAndroid && (
             <button
               onClick={handleSyncToCloud}
               disabled={isSyncing}
               className="btn btn-outline flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
-              title="Upload data lokal ke Cloud"
+              title="Upload data lokal ke Cloud (backup)"
             >
               <Cloud size={18} className={isSyncing ? 'animate-bounce' : ''} />
               <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
@@ -675,6 +702,62 @@ export default function Products() {
           {displayProducts.length === 0 && (
             <div className="text-center py-8 text-gray-500">
               Tidak ada produk ditemukan
+            </div>
+          )}
+          
+          {/* Mobile Pagination */}
+          {totalPages > 1 && (
+            <div className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 mt-3">
+              <div className="text-center text-sm text-gray-600 mb-2">
+                Halaman {currentPage} dari {totalPages} ({totalProducts} produk)
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm bg-gray-100 rounded-lg disabled:opacity-50"
+                >
+                  ← Prev
+                </button>
+                <select
+                  value={currentPage}
+                  onChange={(e) => setCurrentPage(Number(e.target.value))}
+                  className="px-3 py-2 text-sm border rounded-lg bg-white"
+                >
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm bg-gray-100 rounded-lg disabled:opacity-50"
+                >
+                  Next →
+                </button>
+              </div>
+              <div className="flex justify-center gap-2 mt-2">
+                <button
+                  onClick={() => setItemsPerPage(20)}
+                  className={`px-3 py-1 text-xs rounded ${itemsPerPage === 20 ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                >
+                  20
+                </button>
+                <button
+                  onClick={() => setItemsPerPage(50)}
+                  className={`px-3 py-1 text-xs rounded ${itemsPerPage === 50 ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                >
+                  50
+                </button>
+                <button
+                  onClick={() => setItemsPerPage(100)}
+                  className={`px-3 py-1 text-xs rounded ${itemsPerPage === 100 ? 'bg-primary text-white' : 'bg-gray-100'}`}
+                >
+                  100
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1140,7 +1223,12 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
   const [syncToMarketplace, setSyncToMarketplace] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState(null)
-  const [formData, setFormData] = useState(product || {
+  const [formData, setFormData] = useState(product ? {
+    ...product,
+    // Handle both field names from different data sources
+    costPrice: product.costPrice || product.cost || '',
+    price: product.price || product.sellingPrice || ''
+  } : {
     sku: generateSKU(),
     name: '',
     category: categories[0],
@@ -2199,20 +2287,55 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
 function ManageCategoriesModal({ categories, onClose }) {
   const [categoryList, setCategoryList] = useState(categories)
   const [newCategory, setNewCategory] = useState('')
-  const { addCategory, removeCategory } = useProductStore()
+  const { addCategory, setCategories } = useProductStore()
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (newCategory.trim()) {
-      addCategory(newCategory.trim())
-      setCategoryList([...categoryList, newCategory.trim()])
-      setNewCategory('')
+      const result = await addCategory(newCategory.trim())
+      if (result.success) {
+        setCategoryList([...categoryList, newCategory.trim()])
+        setNewCategory('')
+      } else {
+        alert(result.error || 'Gagal menambah kategori')
+      }
     }
   }
 
-  const handleDelete = (cat) => {
-    if (confirm(`Hapus kategori "${cat}"?`)) {
-      removeCategory(cat)
-      setCategoryList(categoryList.filter(c => c !== cat))
+  const handleDelete = async (cat) => {
+    console.log('🗑️ Attempting to delete category:', cat)
+    
+    if (!confirm(`Hapus kategori "${cat}"?`)) {
+      console.log('❌ Delete cancelled by user')
+      return
+    }
+    
+    try {
+      console.log('📤 Calling Firebase directly...')
+      
+      // Import Firebase directly
+      const { firebaseDB } = await import('../lib/firebase')
+      
+      // Filter out the category
+      const newCategories = categoryList.filter(c => c !== cat)
+      console.log('📋 New categories:', newCategories)
+      
+      // Save to Firebase directly
+      const result = await firebaseDB.set('categories', newCategories)
+      console.log('📥 Firebase result:', result)
+      
+      if (result && result.success) {
+        // Update local state
+        setCategoryList(newCategories)
+        // Update Zustand store
+        setCategories(newCategories)
+        console.log('✅ Category deleted successfully')
+      } else {
+        console.error('❌ Delete failed:', result)
+        alert('Gagal menghapus kategori: ' + (result?.error || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('❌ Delete error:', error)
+      alert('Error menghapus kategori: ' + error.message)
     }
   }
 
@@ -2244,17 +2367,25 @@ function ManageCategoriesModal({ categories, onClose }) {
 
           {/* List */}
           <div className="max-h-96 overflow-y-auto space-y-2">
-            {categoryList.map((cat) => (
-              <div key={cat} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium">{cat}</span>
-                <button
-                  onClick={() => handleDelete(cat)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 size={18} />
-                </button>
+            {categoryList.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Belum ada kategori</p>
+                <p className="text-sm">Tambahkan kategori baru di atas</p>
               </div>
-            ))}
+            ) : (
+              categoryList.map((cat) => (
+                <div key={cat} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                  <span className="font-medium text-base">{cat}</span>
+                  <button
+                    onClick={() => handleDelete(cat)}
+                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Hapus kategori"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
 
           <button onClick={onClose} className="w-full btn btn-secondary">

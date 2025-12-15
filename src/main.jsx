@@ -8,11 +8,6 @@ import { App as CapApp } from '@capacitor/app'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
 
-// Supabase realtime stores
-import { useProductStore } from './store/productStore'
-import { useCustomerStore } from './store/customerStore'
-import { useTransactionStore } from './store/transactionStore'
-
 // Dummy data for testing
 import { seedDummyData, clearDummyData } from './utils/seedDummyData'
 
@@ -31,29 +26,6 @@ const initCapacitor = async () => {
   }
 }
 
-// Initialize Supabase realtime sync
-const initRealtimeSync = async () => {
-  // Check if Supabase is configured
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  
-  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your-supabase-url' || supabaseKey === 'your-supabase-anon-key') {
-    console.log('⚠️ Supabase not configured - skipping realtime sync')
-    return
-  }
-  
-  console.log('Initializing realtime sync...')
-  try {
-    await useProductStore.getState().initRealtime()
-    await useCustomerStore.getState().initRealtime()
-    await useTransactionStore.getState().initRealtime()
-    console.log('✅ Realtime sync initialized!')
-  } catch (error) {
-    console.warn('⚠️ Realtime sync not available (offline mode or Supabase issue):', error.message)
-    // Don't retry if it fails - just continue without realtime
-  }
-}
-
 // Handle Android back button
 CapApp.addListener('backButton', ({ canGoBack }) => {
   if (canGoBack) {
@@ -64,7 +36,6 @@ CapApp.addListener('backButton', ({ canGoBack }) => {
 })
 
 initCapacitor()
-initRealtimeSync()
 
 if (import.meta.env.DEV) {
   window.seedDummyData = seedDummyData

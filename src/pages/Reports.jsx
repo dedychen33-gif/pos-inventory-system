@@ -4,6 +4,20 @@ import { useTransactionStore } from '../store/transactionStore'
 import { useProductStore } from '../store/productStore'
 import { useMarketplaceStore } from '../store/marketplaceStore'
 import { useAuthStore } from '../store/authStore'
+import { useSalesOrderStore } from '../store/salesOrderStore'
+import { usePurchaseStore } from '../store/purchaseStore'
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+// Get returns store
+const useReturnsStore = create(
+  persist(
+    (set) => ({
+      returns: [],
+    }),
+    { name: 'returns-storage' }
+  )
+)
 import { isAndroid } from '../utils/platform'
 
 export default function Reports() {
@@ -16,10 +30,16 @@ export default function Reports() {
   const { products, stockHistory, updateStock } = useProductStore()
   const { stores } = useMarketplaceStore()
   const { user } = useAuthStore()
+  const { salesOrders } = useSalesOrderStore()
+  const { returns } = useReturnsStore()
+  const { purchases, suppliers } = usePurchaseStore()
 
   const reportTypes = [
     { id: 'transactions', label: 'Transaksi Kasir' },
     { id: 'sales', label: 'Laporan Penjualan' },
+    { id: 'salesorders', label: 'Sales Order' },
+    { id: 'purchases', label: 'Laporan Pembelian' },
+    { id: 'returns', label: 'Laporan Retur' },
     { id: 'stock', label: 'Laporan Stok' },
     { id: 'products', label: 'Produk Terlaris' },
     { id: 'profit', label: 'Laba Rugi' },
@@ -154,6 +174,9 @@ export default function Reports() {
       {/* Report Content */}
       {reportType === 'transactions' && <TransactionsReport transactions={transactions} voidTransaction={voidTransaction} updateStock={updateStock} user={user} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'sales' && <SalesReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
+      {reportType === 'salesorders' && <SalesOrdersReport salesOrders={salesOrders} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
+      {reportType === 'purchases' && <PurchasesReport purchases={purchases} suppliers={suppliers} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
+      {reportType === 'returns' && <ReturnsReport returns={returns} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'stock' && <StockReport products={products} stockHistory={stockHistory} />}
       {reportType === 'products' && <ProductsReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'profit' && <ProfitReport transactions={transactions} products={products} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
@@ -599,6 +622,11 @@ function StockReport({ products, stockHistory }) {
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length
   const outOfStockCount = products.filter((p) => p.stock === 0).length
   const totalStock = products.reduce((sum, p) => sum + p.stock, 0)
+  
+  // Damaged stock calculations
+  const totalDamagedStock = products.reduce((sum, p) => sum + (p.damagedStock || 0), 0)
+  const totalDamagedValue = products.reduce((sum, p) => sum + ((p.damagedStock || 0) * (p.cost || p.price || 0)), 0)
+  const damagedProductsCount = products.filter(p => (p.damagedStock || 0) > 0).length
 
   // Filter and sort products
   let filteredProducts = [...products]
@@ -608,6 +636,8 @@ function StockReport({ products, stockHistory }) {
     filteredProducts = filteredProducts.filter(p => p.stock === 0)
   } else if (filterStatus === 'normal') {
     filteredProducts = filteredProducts.filter(p => p.stock > p.minStock)
+  } else if (filterStatus === 'damaged') {
+    filteredProducts = filteredProducts.filter(p => (p.damagedStock || 0) > 0)
   }
 
   if (sortBy === 'stock-asc') {
@@ -651,6 +681,11 @@ function StockReport({ products, stockHistory }) {
           <p className="text-2xl font-bold mt-1 text-red-600">{lowStockCount + outOfStockCount}</p>
           <p className="text-xs text-gray-500">{outOfStockCount} habis, {lowStockCount} rendah</p>
         </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Stok Rusak</p>
+          <p className="text-2xl font-bold mt-1 text-orange-600">{totalDamagedStock}</p>
+          <p className="text-xs text-gray-500">{damagedProductsCount} produk, Rp {totalDamagedValue.toLocaleString('id-ID')}</p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -661,6 +696,7 @@ function StockReport({ products, stockHistory }) {
             <option value="normal">Stok Normal</option>
             <option value="low">Stok Rendah</option>
             <option value="out">Stok Habis</option>
+            <option value="damaged">Stok Rusak</option>
           </select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="input">
             <option value="name">Urut: Nama A-Z</option>
@@ -679,6 +715,7 @@ function StockReport({ products, stockHistory }) {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stok</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rusak</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Min</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harga Jual</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">HPP</th>
@@ -695,6 +732,13 @@ function StockReport({ products, stockHistory }) {
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">
                     {product.stock} {product.unit}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {(product.damagedStock || 0) > 0 ? (
+                      <span className="text-orange-600 font-medium">{product.damagedStock}</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">
                     {product.minStock}
@@ -1245,6 +1289,435 @@ function SourceReport({ transactions, stores, dateRange, customStartDate, custom
           dari halaman Marketplace Integration. Pastikan semua toko sudah terhubung untuk laporan yang akurat.
         </p>
       </div>
+    </div>
+  )
+}
+
+// Sales Orders Report
+function SalesOrdersReport({ salesOrders, dateRange, customStartDate, customEndDate }) {
+  const filterByDate = (data) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return data.filter(item => {
+      const itemDate = new Date(item.createdAt)
+      
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        const start = new Date(customStartDate)
+        const end = new Date(customEndDate)
+        end.setHours(23, 59, 59, 999)
+        return itemDate >= start && itemDate <= end
+      }
+      
+      if (dateRange === 'today') {
+        const itemDay = new Date(itemDate)
+        itemDay.setHours(0, 0, 0, 0)
+        return itemDay.getTime() === today.getTime()
+      } else if (dateRange === 'week') {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return itemDate >= weekAgo
+      } else if (dateRange === 'month') {
+        const monthAgo = new Date(today)
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        return itemDate >= monthAgo
+      }
+      return true
+    })
+  }
+
+  const filteredOrders = filterByDate(salesOrders || [])
+  const totalOrders = filteredOrders.length
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  const pendingOrders = filteredOrders.filter(o => o.status === 'pending').length
+  const completedOrders = filteredOrders.filter(o => o.status === 'lunas' || o.status === 'completed').length
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card">
+          <p className="text-sm text-gray-600">Total SO</p>
+          <p className="text-2xl font-bold">{totalOrders}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Nilai</p>
+          <p className="text-2xl font-bold text-green-600">Rp {totalRevenue.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Pending</p>
+          <p className="text-2xl font-bold text-yellow-600">{pendingOrders}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Lunas</p>
+          <p className="text-2xl font-bold text-blue-600">{completedOrders}</p>
+        </div>
+      </div>
+
+      {/* Orders Table */}
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4">Daftar Sales Order</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Pesanan</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                    Tidak ada data Sales Order
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono font-semibold text-blue-600">
+                      {order.orderNumber || order.id}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {new Date(order.createdAt).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3">{order.customer?.name || 'Walk-in'}</td>
+                    <td className="px-4 py-3 text-center">{order.items?.length || 0}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      Rp {(order.total || 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        order.status === 'lunas' || order.status === 'completed' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {order.status === 'lunas' ? 'Lunas' : order.status === 'completed' ? 'Selesai' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Returns Report
+function ReturnsReport({ returns, dateRange, customStartDate, customEndDate }) {
+  const filterByDate = (data) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return data.filter(item => {
+      const itemDate = new Date(item.createdAt)
+      
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        const start = new Date(customStartDate)
+        const end = new Date(customEndDate)
+        end.setHours(23, 59, 59, 999)
+        return itemDate >= start && itemDate <= end
+      }
+      
+      if (dateRange === 'today') {
+        const itemDay = new Date(itemDate)
+        itemDay.setHours(0, 0, 0, 0)
+        return itemDay.getTime() === today.getTime()
+      } else if (dateRange === 'week') {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return itemDate >= weekAgo
+      } else if (dateRange === 'month') {
+        const monthAgo = new Date(today)
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        return itemDate >= monthAgo
+      }
+      return true
+    })
+  }
+
+  const filteredReturns = filterByDate(returns || [])
+  const totalReturns = filteredReturns.length
+  const totalValue = filteredReturns.reduce((sum, r) => sum + (r.total || 0), 0)
+  const pendingReturns = filteredReturns.filter(r => r.status === 'pending').length
+  const completedReturns = filteredReturns.filter(r => r.status === 'completed').length
+  const damagedReturns = filteredReturns.filter(r => r.reason === 'Barang rusak/cacat').length
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Retur</p>
+          <p className="text-2xl font-bold">{totalReturns}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Nilai Retur</p>
+          <p className="text-2xl font-bold text-red-600">Rp {totalValue.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Pending</p>
+          <p className="text-2xl font-bold text-yellow-600">{pendingReturns}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Selesai</p>
+          <p className="text-2xl font-bold text-green-600">{completedReturns}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Barang Rusak</p>
+          <p className="text-2xl font-bold text-orange-600">{damagedReturns}</p>
+        </div>
+      </div>
+
+      {/* Returns Table */}
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4">Daftar Retur</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Retur</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Pesanan</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alasan</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredReturns.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                    Tidak ada data Retur
+                  </td>
+                </tr>
+              ) : (
+                filteredReturns.map((ret) => (
+                  <tr key={ret.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono font-semibold text-sm">{ret.id}</td>
+                    <td className="px-4 py-3 font-mono text-blue-600 text-sm">{ret.orderNumber || '-'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {new Date(ret.createdAt).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3">{ret.customer?.name || '-'}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      Rp {(ret.total || 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-sm ${ret.reason === 'Barang rusak/cacat' ? 'text-red-600 font-medium' : ''}`}>
+                        {ret.reason || '-'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        ret.status === 'completed' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {ret.status === 'completed' ? 'Selesai' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Returns by Reason Chart */}
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4">Retur berdasarkan Alasan</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {Object.entries(
+            filteredReturns.reduce((acc, r) => {
+              const reason = r.reason || 'Lainnya'
+              acc[reason] = (acc[reason] || 0) + 1
+              return acc
+            }, {})
+          ).map(([reason, count]) => (
+            <div key={reason} className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">{reason}</p>
+              <p className="text-xl font-bold">{count}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Purchases Report
+function PurchasesReport({ purchases, suppliers, dateRange, customStartDate, customEndDate }) {
+  const filterByDate = (data) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return data.filter(item => {
+      const itemDate = new Date(item.createdAt || item.date)
+      
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        const start = new Date(customStartDate)
+        const end = new Date(customEndDate)
+        end.setHours(23, 59, 59, 999)
+        return itemDate >= start && itemDate <= end
+      }
+      
+      if (dateRange === 'today') {
+        const itemDay = new Date(itemDate)
+        itemDay.setHours(0, 0, 0, 0)
+        return itemDay.getTime() === today.getTime()
+      } else if (dateRange === 'week') {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return itemDate >= weekAgo
+      } else if (dateRange === 'month') {
+        const monthAgo = new Date(today)
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        return itemDate >= monthAgo
+      }
+      return true
+    })
+  }
+
+  const filteredPurchases = filterByDate(purchases || [])
+  const totalPurchases = filteredPurchases.length
+  const totalValue = filteredPurchases.reduce((sum, p) => sum + (p.total || 0), 0)
+  const pendingPurchases = filteredPurchases.filter(p => p.status === 'pending').length
+  const completedPurchases = filteredPurchases.filter(p => p.status === 'completed' || p.status === 'received').length
+  const totalItems = filteredPurchases.reduce((sum, p) => sum + (p.items?.length || 0), 0)
+
+  // Get supplier stats
+  const supplierStats = filteredPurchases.reduce((acc, p) => {
+    const supplierName = p.supplier?.name || 'Tidak diketahui'
+    if (!acc[supplierName]) {
+      acc[supplierName] = { count: 0, total: 0 }
+    }
+    acc[supplierName].count++
+    acc[supplierName].total += p.total || 0
+    return acc
+  }, {})
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="card">
+          <p className="text-sm text-gray-600">Total PO</p>
+          <p className="text-2xl font-bold">{totalPurchases}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Nilai</p>
+          <p className="text-2xl font-bold text-blue-600">Rp {totalValue.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Pending</p>
+          <p className="text-2xl font-bold text-yellow-600">{pendingPurchases}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Selesai</p>
+          <p className="text-2xl font-bold text-green-600">{completedPurchases}</p>
+        </div>
+        <div className="card">
+          <p className="text-sm text-gray-600">Total Item</p>
+          <p className="text-2xl font-bold">{totalItems}</p>
+        </div>
+      </div>
+
+      {/* Purchases Table */}
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4">Daftar Pembelian</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. PO</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredPurchases.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                    Tidak ada data Pembelian
+                  </td>
+                </tr>
+              ) : (
+                filteredPurchases.map((purchase) => (
+                  <tr key={purchase.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono font-semibold text-blue-600">
+                      {purchase.id}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {new Date(purchase.createdAt || purchase.date).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3">{purchase.supplier?.name || '-'}</td>
+                    <td className="px-4 py-3 text-center">{purchase.items?.length || 0}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      Rp {(purchase.total || 0).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        purchase.status === 'completed' || purchase.status === 'received'
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {purchase.status === 'completed' || purchase.status === 'received' ? 'Selesai' : 'Pending'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Supplier Stats */}
+      {Object.keys(supplierStats).length > 0 && (
+        <div className="card">
+          <h3 className="text-lg font-bold mb-4">Pembelian per Supplier</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Object.entries(supplierStats)
+              .sort((a, b) => b[1].total - a[1].total)
+              .map(([name, data]) => (
+                <div key={name} className="p-4 bg-gray-50 rounded-lg">
+                  <p className="font-medium text-gray-900">{name}</p>
+                  <p className="text-sm text-gray-600">{data.count} PO</p>
+                  <p className="text-lg font-bold text-blue-600">Rp {data.total.toLocaleString('id-ID')}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suppliers List */}
+      {suppliers && suppliers.length > 0 && (
+        <div className="card">
+          <h3 className="text-lg font-bold mb-4">Daftar Supplier ({suppliers.length})</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {suppliers.map((supplier) => (
+              <div key={supplier.id} className="p-4 border rounded-lg">
+                <p className="font-medium">{supplier.name}</p>
+                <p className="text-sm text-gray-600">{supplier.phone || '-'}</p>
+                <p className="text-xs text-gray-500">{supplier.address || '-'}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

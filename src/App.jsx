@@ -2,7 +2,9 @@ import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { isAndroid } from './utils/platform'
-import { RealtimeSyncProvider } from './hooks/useRealtimeSync'
+import { FirebaseSyncProvider } from './hooks/useFirebaseSync'
+import './utils/testDummyData' // Load test functions globally
+import './utils/forceReloadStores' // Load force reload utility
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -11,6 +13,7 @@ import Products from './pages/Products'
 import Stock from './pages/Stock'
 import Purchases from './pages/Purchases'
 import Sales from './pages/Sales'
+import Returns from './pages/Returns'
 import Customers from './pages/Customers'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
@@ -30,7 +33,7 @@ function App() {
 
   return (
     <Router>
-      <RealtimeSyncProvider>
+      <FirebaseSyncProvider>
         <Routes>
           <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
           
@@ -49,6 +52,7 @@ function App() {
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/purchases" element={<Purchases />} />
                     <Route path="/sales" element={<Sales />} />
+                    <Route path="/returns" element={<Returns />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/settings" element={<Settings />} />
@@ -60,7 +64,7 @@ function App() {
             }
           />
         </Routes>
-      </RealtimeSyncProvider>
+      </FirebaseSyncProvider>
     </Router>
   )
 }

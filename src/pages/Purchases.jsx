@@ -1,17 +1,47 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText, DollarSign } from 'lucide-react'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import PullToRefresh from '../components/PullToRefresh'
 
 export default function Purchases() {
   const [showModal, setShowModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
-  const { purchases, suppliers, addPurchase, updatePurchase, deletePurchase, addSupplier } = usePurchaseStore()
+  const { purchases, suppliers, addPurchase, updatePurchase, deletePurchase, addSupplier, deleteSupplier } = usePurchaseStore()
+  
+  // Debug: fetch purchases from Supabase on mount
+  useEffect(() => {
+    const fetchPurchases = async () => {
+      if (!isSupabaseConfigured()) {
+        console.log('⚠️ Supabase not configured')
+        return
+      }
+      
+      console.log('🔍 Fetching purchases from Supabase...')
+      const { data, error } = await supabase.from('purchases').select('*')
+      
+      if (error) {
+        console.error('❌ Purchases fetch error:', error.message)
+      } else {
+        console.log('✅ Purchases from Supabase:', data?.length || 0, data)
+      }
+    }
+    
+    fetchPurchases()
+  }, [])
   const { products, updateStock } = useProductStore()
   const { user } = useAuthStore()
+
+  // Pull to refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (window.__forceSync) {
+      await window.__forceSync()
+    }
+  }, [])
 
   const handleAddPurchase = () => {
     setEditingPurchase(null)
@@ -74,6 +104,7 @@ export default function Purchases() {
   }
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -220,9 +251,11 @@ export default function Purchases() {
           suppliers={suppliers}
           onClose={() => setShowSupplierModal(false)}
           onAdd={addSupplier}
+          onDelete={deleteSupplier}
         />
       )}
     </div>
+    </PullToRefresh>
   )
 }
 
@@ -326,10 +359,12 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
       return
     }
 
-    const supplier = suppliers.find(s => s.id === parseInt(formData.supplier))
+    const supplier = suppliers.find(s => s.id === formData.supplier || String(s.id) === String(formData.supplier))
     onSubmit({
       ...formData,
+      supplierId: formData.supplier,
       supplierName: supplier?.name || '',
+      subtotal: calculateTotal(),
       total: calculateTotal()
     })
   }
@@ -528,7 +563,7 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
   )
 }
 
-function SupplierModal({ suppliers, onClose, onAdd }) {
+function SupplierModal({ suppliers, onClose, onAdd, onDelete }) {
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ name: '', contact: '', email: '', address: '' })
 
@@ -537,6 +572,12 @@ function SupplierModal({ suppliers, onClose, onAdd }) {
     onAdd(formData)
     setFormData({ name: '', contact: '', email: '', address: '' })
     setShowForm(false)
+  }
+
+  const handleDelete = (id, name) => {
+    if (confirm(`Hapus supplier "${name}"?`)) {
+      onDelete(id)
+    }
   }
 
   return (
@@ -563,11 +604,22 @@ function SupplierModal({ suppliers, onClose, onAdd }) {
               <div className="space-y-3">
                 {suppliers.map(supplier => (
                   <div key={supplier.id} className="card">
-                    <h4 className="font-bold text-lg">{supplier.name}</h4>
-                    <p className="text-sm text-gray-600 mt-1">
-                      📞 {supplier.contact} | ✉️ {supplier.email}
-                    </p>
-                    <p className="text-sm text-gray-600">📍 {supplier.address}</p>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-lg">{supplier.name}</h4>
+                        <p className="text-sm text-gray-600 mt-1">
+                          📞 {supplier.phone || supplier.contact} | ✉️ {supplier.email}
+                        </p>
+                        <p className="text-sm text-gray-600">📍 {supplier.address}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(supplier.id, supplier.name)}
+                        className="text-red-500 hover:text-red-700 p-2"
+                        title="Hapus Supplier"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -73,15 +73,7 @@ export const transformProductToDB = (p) => {
     is_active: p.isActive !== false
   };
 
-  // Only include variant fields if they exist
-  if (p.hasVariants !== undefined) {
-    dbProduct.has_variants = Boolean(p.hasVariants);
-  }
-  
-  if (p.isVariant !== undefined) {
-    dbProduct.is_variant = Boolean(p.isVariant);
-  }
-  
+  // Only include variant fields that exist in database schema
   if (p.parentId) {
     dbProduct.parent_id = p.parentId;
   }
@@ -454,9 +446,10 @@ export const syncLocalToSupabase = async (products, customers, transactions) => 
   // Sync products
   for (const product of products) {
     try {
+      const productData = transformProductToDB(product)
       const { error } = await supabase
         .from('products')
-        .upsert(transformProductToDB(product), { onConflict: 'code' });
+        .upsert(productData, { onConflict: 'id' });
       if (!error) results.products++;
       else results.errors.push(`Product ${product.name}: ${error.message}`);
     } catch (e) {
@@ -468,9 +461,10 @@ export const syncLocalToSupabase = async (products, customers, transactions) => 
   for (const customer of customers) {
     if (customer.type === 'walk-in') continue; // Skip walk-in
     try {
+      const customerData = transformCustomerToDB(customer)
       const { error } = await supabase
         .from('customers')
-        .upsert(transformCustomerToDB(customer), { onConflict: 'code' });
+        .upsert(customerData, { onConflict: 'id' });
       if (!error) results.customers++;
       else results.errors.push(`Customer ${customer.name}: ${error.message}`);
     } catch (e) {
@@ -481,9 +475,10 @@ export const syncLocalToSupabase = async (products, customers, transactions) => 
   // Sync transactions
   for (const transaction of transactions) {
     try {
+      const transactionData = transformTransactionToDB(transaction)
       const { error } = await supabase
         .from('transactions')
-        .upsert(transformTransactionToDB(transaction), { onConflict: 'transaction_code' });
+        .upsert(transactionData, { onConflict: 'id' });
       if (!error) results.transactions++;
       else results.errors.push(`Transaction ${transaction.transactionCode}: ${error.message}`);
     } catch (e) {

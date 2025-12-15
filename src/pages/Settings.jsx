@@ -7,6 +7,7 @@ import { useCustomerStore } from '../store/customerStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useCartStore } from '../store/cartStore'
+import { useSalesOrderStore } from '../store/salesOrderStore'
 import { useAuditStore, AUDIT_ACTIONS } from '../store/auditStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getSyncStatus, syncLocalToSupabase, deleteAllSupabaseData } from '../services/supabaseSync'
@@ -20,24 +21,31 @@ export default function Settings() {
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false)
   const [isAutoSyncing, setIsAutoSyncing] = useState(false)
   const [autoSyncStatus, setAutoSyncStatus] = useState(null)
+  const [error, setError] = useState(null)
   
-  const { users, user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin, resetToDefaultAdmin } = useAuthStore()
-  const { storeInfo, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore()
-  const { products } = useProductStore()
-  const { customers } = useCustomerStore()
-  const { transactions } = useTransactionStore()
-  const { purchases, suppliers } = usePurchaseStore()
-  const { cartItems } = useCartStore()
-  const { logs, clearOldLogs, exportLogs } = useAuditStore()
-  const [formData, setFormData] = useState(storeInfo)
+  const { users = [], user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin, resetToDefaultAdmin } = useAuthStore() || {}
+  const { storeInfo = {}, updateStoreInfo, setLogo, stockSettings, updateStockSettings, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore() || {}
+  const { products = [] } = useProductStore() || {}
+  const { customers = [] } = useCustomerStore() || {}
+  const { transactions = [] } = useTransactionStore() || {}
+  const { purchases = [], suppliers = [] } = usePurchaseStore() || {}
+  const { cartItems = [] } = useCartStore() || {}
+  const { salesOrders = [] } = useSalesOrderStore() || {}
+  const { logs = [], clearOldLogs, exportLogs } = useAuditStore() || {}
+  const [formData, setFormData] = useState(storeInfo || {})
   const [stockFormData, setStockFormData] = useState(stockSettings || { bufferPercent: 10, minBuffer: 3, enableAutoSync: true, syncInterval: 30 })
   const [waFormData, setWaFormData] = useState({ number: whatsappNumber || '', message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' })
 
   // Load auto-sync settings on mount
   useEffect(() => {
-    const status = getAutoSyncStatus()
-    setAutoSyncEnabled(status.isEnabled)
-    setAutoSyncStatus(status)
+    try {
+      const status = getAutoSyncStatus()
+      setAutoSyncEnabled(status?.isEnabled || false)
+      setAutoSyncStatus(status)
+    } catch (err) {
+      console.error('Error loading auto-sync status:', err)
+      setAutoSyncEnabled(false)
+    }
   }, [])
 
   // Handle auto-sync toggle
@@ -72,6 +80,10 @@ export default function Settings() {
   }
 
   const handleBackupDatabase = () => {
+    // Get returns from localStorage
+    const returnsData = JSON.parse(localStorage.getItem('returns-storage') || '{}')
+    const returns = returnsData?.state?.returns || []
+    
     const backupData = {
       version: '1.0',
       timestamp: new Date().toISOString(),
@@ -81,6 +93,8 @@ export default function Settings() {
         transactions: transactions,
         purchases: purchases,
         suppliers: suppliers,
+        salesOrders: salesOrders,
+        returns: returns,
         settings: storeInfo,
         users: users,
         cart: cartItems
@@ -111,7 +125,7 @@ export default function Settings() {
     }
 
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const backupData = JSON.parse(event.target.result)
         
@@ -125,10 +139,31 @@ export default function Settings() {
           ? [...new Set(backupData.data.products.map(p => p.category).filter(Boolean))]
           : ['Makanan', 'Minuman', 'Snack', 'Sembako', 'Elektronik', 'Alat Tulis', 'Paket Bundling']
 
+        // Debug: Log first product before normalization
+        console.log('🔍 DEBUG: First product from backup:', backupData.data.products[0]);
+        console.log('🔍 DEBUG: First product price from backup:', backupData.data.products[0]?.price);
+
+        // Normalize product data to ensure both field names work
+        const normalizedProducts = (backupData.data.products || []).map(p => ({
+          ...p,
+          // Ensure both cost and costPrice are set
+          cost: p.cost || p.costPrice || 0,
+          costPrice: p.costPrice || p.cost || 0,
+          // Ensure price is set
+          price: p.price || p.sellingPrice || 0,
+          // Ensure stock fields
+          stock: p.stock || 0,
+          minStock: p.minStock || p.min_stock || 5
+        }))
+        
+        // Debug: Log first product after normalization
+        console.log('🔍 DEBUG: First product after normalization:', normalizedProducts[0]);
+        console.log('🔍 DEBUG: First product price after normalization:', normalizedProducts[0]?.price);
+
         // Restore to localStorage with correct Zustand persist format
         localStorage.setItem('product-storage', JSON.stringify({ 
           state: { 
-            products: backupData.data.products || [], 
+            products: normalizedProducts, 
             categories: categories,
             units: ['pcs', 'kg', 'box', 'pack', 'lusin', 'kodi', 'gross', 'paket'],
             stockHistory: [],
@@ -169,6 +204,22 @@ export default function Settings() {
           version: 0
         }))
         
+        // Restore Sales Orders
+        localStorage.setItem('sales-order-storage', JSON.stringify({ 
+          state: { 
+            salesOrders: backupData.data.salesOrders || []
+          },
+          version: 0
+        }))
+        
+        // Restore Returns
+        localStorage.setItem('returns-storage', JSON.stringify({ 
+          state: { 
+            returns: backupData.data.returns || []
+          },
+          version: 0
+        }))
+        
         // Find admin user or first user to set as current user
         const users = backupData.data.users || []
         const adminUser = users.find(u => u.role === 'admin' && u.isActive) || users.find(u => u.isActive) || users[0]
@@ -182,11 +233,39 @@ export default function Settings() {
           version: 0
         }))
         
-        // Set flag to prevent Supabase from overwriting restored data
-        localStorage.setItem('just-restored', 'true')
+        // Set timestamp flag to prevent Firebase from overwriting restored data
+        // This protection lasts for 5 minutes to allow multiple refreshes
+        localStorage.setItem('restore-timestamp', Date.now().toString())
+        localStorage.setItem('just-restored', 'true') // Keep for backward compatibility
         
-        alert('Restore database berhasil! Halaman akan di-refresh.')
-        window.location.reload()
+        // Debug: Verify data was saved correctly
+        const savedData = JSON.parse(localStorage.getItem('product-storage'));
+        console.log('✅ Saved to localStorage - First product price:', savedData?.state?.products?.[0]?.price);
+        
+        // Upload to Firebase for realtime sync across devices
+        console.log('📤 Uploading data to Firebase...')
+        if (window.migrateToFirebase) {
+          try {
+            const result = await window.migrateToFirebase()
+            if (result.success) {
+              console.log(`✅ Uploaded ${result.count} items to Firebase`)
+              alert(`Restore berhasil!\n\n✅ ${result.count} items di-upload ke Firebase\n\nData akan sync ke semua device.`)
+            } else {
+              console.error('❌ Firebase upload failed:', result.error)
+              alert('Restore berhasil ke localStorage, tapi upload ke Firebase gagal.\n\nData hanya tersimpan lokal.')
+            }
+          } catch (error) {
+            console.error('❌ Firebase upload error:', error)
+            alert('Restore berhasil ke localStorage, tapi upload ke Firebase gagal.\n\nData hanya tersimpan lokal.')
+          }
+        } else {
+          alert('Restore database berhasil!\n\nData tersimpan di localStorage.')
+        }
+        
+        // Reload after a short delay to allow Firebase upload to complete
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
       } catch (error) {
         alert('Error restore database: ' + error.message)
       }
@@ -300,6 +379,7 @@ export default function Settings() {
     useTransactionStore.setState({ transactions: [] })
     usePurchaseStore.setState({ purchases: [], suppliers: [] })
     useCartStore.setState({ items: [], discount: 0, discountType: 'percent', paymentMethod: 'cash', customerId: null })
+    useSalesOrderStore.setState({ salesOrders: [] })
 
     // Clear all localStorage
     localStorage.removeItem('product-storage')
@@ -308,6 +388,8 @@ export default function Settings() {
     localStorage.removeItem('purchase-storage')
     localStorage.removeItem('settings-storage')
     localStorage.removeItem('cart-storage')
+    localStorage.removeItem('sales-order-storage')
+    localStorage.removeItem('returns-storage')
     
     // Clear Shopee cache data
     localStorage.removeItem('shopee_products_cache')

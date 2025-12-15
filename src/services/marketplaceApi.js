@@ -1082,6 +1082,70 @@ export const marketplaceService = {
     }
     
     return api.getOrdersByStatus(store, status, dateRange);
+  },
+
+  // Sync prices from marketplace to Supabase
+  syncPricesToSupabase: async (store, supabase) => {
+    if (!store || store.platform === 'manual') {
+      return { success: false, error: 'Store tidak valid' };
+    }
+
+    try {
+      console.log(`🔄 Syncing prices from ${store.platform}...`);
+      
+      // Get products from marketplace
+      const api = marketplaceService.getApi(store.platform);
+      if (!api) {
+        throw new Error('Platform tidak didukung');
+      }
+
+      const result = await api.getProducts(store, { limit: 100 });
+      const products = result?.data || result?.products || [];
+      
+      if (!products.length) {
+        return { success: true, message: 'Tidak ada produk dari marketplace', updated: 0 };
+      }
+
+      let updated = 0;
+      let errors = [];
+
+      for (const product of products) {
+        // Get price from marketplace product
+        const price = product.price || product.original_price || 
+                     product.price_info?.current_price || 
+                     product.models?.[0]?.price || 0;
+        
+        const itemId = product.item_id || product.id;
+        
+        if (!itemId || !price) continue;
+
+        // Update price in Supabase by shopee_item_id
+        const { error } = await supabase
+          .from('products')
+          .update({ 
+            price: price,
+            updated_at: new Date().toISOString()
+          })
+          .eq('shopee_item_id', itemId);
+
+        if (error) {
+          errors.push({ itemId, error: error.message });
+        } else {
+          updated++;
+        }
+      }
+
+      console.log(`✅ Synced ${updated} product prices from ${store.platform}`);
+      return { 
+        success: true, 
+        updated, 
+        total: products.length,
+        errors: errors.length > 0 ? errors : undefined 
+      };
+    } catch (error) {
+      console.error('❌ Sync prices error:', error);
+      return { success: false, error: error.message };
+    }
   }
 };
 

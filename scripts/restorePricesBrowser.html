@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Restore Prices from Backup</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    #log { background: #f0f0f0; padding: 10px; height: 400px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>Restore Prices from Backup</h1>
+  <input type="file" id="fileInput" accept=".json" />
+  <br>
+  <button onclick="restorePrices()">Start Restore</button>
+  <div id="log"></div>
+
+  <script>
+    const supabaseUrl = 'https://naydyhkqodpphzwkctr.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5heWR5aGtxb2RwcGh6d2tjdHIiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0OTM0ODM3NywiZXhwIjoyMDY0OTI0Mzc3fQ.a4LKpAjnGdOL9xvjLG8KrdAtwu7ndNh5IlZ_PNXDQII';
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    function log(msg, type = '') {
+      const div = document.getElementById('log');
+      div.innerHTML += `<div class="${type}">${msg}</div>`;
+      div.scrollTop = div.scrollHeight;
+    }
+
+    async function restorePrices() {
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files[0]) {
+        alert('Pilih file backup dulu!');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const backup = JSON.parse(e.target.result);
+          const products = backup.data.products;
+          log(`📦 Found ${products.length} products in backup`);
+
+          let updated = 0;
+          let errors = 0;
+
+          for (const product of products) {
+            if (product.price > 0) {
+              // Try update by ID first
+              let { error } = await supabase
+                .from('products')
+                .update({ price: product.price, cost: product.cost || 0 })
+                .eq('id', product.id);
+
+              if (error && product.shopeeItemId) {
+                // Try by shopee_item_id
+                const result = await supabase
+                  .from('products')
+                  .update({ price: product.price, cost: product.cost || 0 })
+                  .eq('shopee_item_id', product.shopeeItemId);
+                error = result.error;
+              }
+
+              if (error) {
+                log(`❌ ${product.name.substring(0,40)}... : ${error.message}`, 'error');
+                errors++;
+              } else {
+                updated++;
+                if (updated % 10 === 0) {
+                  log(`✅ Updated ${updated} products...`, 'success');
+                }
+              }
+            }
+          }
+
+          log(`\n=============================`, 'success');
+          log(`✅ Total Updated: ${updated} products`, 'success');
+          log(`❌ Total Errors: ${errors}`, errors > 0 ? 'error' : '');
+          log(`Selesai! Refresh Web app untuk lihat hasilnya.`, 'success');
+        } catch (err) {
+          log(`Error: ${err.message}`, 'error');
+        }
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+  </script>
+</body>
+</html>

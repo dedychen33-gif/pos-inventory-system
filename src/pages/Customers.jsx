@@ -380,24 +380,27 @@ function CustomPriceModal({ customer, onClose }) {
     }
   }
 
-  const handleSave = () => {
-    // Save all custom prices
-    Object.entries(customPrices).forEach(([productId, price]) => {
-      setCustomPrice(customer.id, parseInt(productId), price)
-    })
-
-    // Remove prices that were cleared
-    Object.keys(customer.customPrices || {}).forEach((productId) => {
-      if (!customPrices[productId]) {
-        removeCustomPrice(customer.id, parseInt(productId))
+  const handleSave = async () => {
+    // Use saveCustomPrices to save all at once
+    const { saveCustomPrices } = useCustomerStore.getState()
+    
+    try {
+      const result = await saveCustomPrices(customer.id, customPrices)
+      if (result.success) {
+        alert('Harga khusus berhasil disimpan!')
+        onClose()
+      } else {
+        alert('Gagal menyimpan: ' + (result.error || 'Unknown error'))
       }
-    })
-
-    onClose()
+    } catch (error) {
+      console.error('Error saving custom prices:', error)
+      alert('Gagal menyimpan: ' + error.message)
+    }
   }
 
   const getMinPrice = (product) => {
-    return product.costPrice * 1.15
+    const cost = product.costPrice || product.cost || 0
+    return cost * 1.15
   }
 
   return (
@@ -457,7 +460,7 @@ function CustomPriceModal({ customer, onClose }) {
                       <td className="px-4 py-3 text-sm font-medium">{product.name}</td>
                       <td className="px-4 py-3 text-sm">{product.category}</td>
                       <td className="px-4 py-3 text-sm text-right">
-                        Rp {product.costPrice.toLocaleString('id-ID')}
+                        Rp {(product.costPrice || product.cost || 0).toLocaleString('id-ID')}
                       </td>
                       <td className="px-4 py-3 text-sm text-right font-semibold">
                         Rp {product.price.toLocaleString('id-ID')}

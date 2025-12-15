@@ -20,7 +20,8 @@ import {
   CloudOff,
   RefreshCw,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useProductStore } from '../store/productStore'
@@ -36,6 +37,7 @@ const allMenuItems = [
   { path: '/stock', icon: Warehouse, label: 'Stok', permission: 'stock' },
   { path: '/purchases', icon: Truck, label: 'Pembelian', permission: 'purchase' },
   { path: '/sales', icon: TrendingUp, label: 'Penjualan', permission: 'sales' },
+  { path: '/returns', icon: RotateCcw, label: 'Barang Retur', permission: 'sales' },
   { path: '/customers', icon: Users, label: 'Pelanggan', permission: 'customers' },
   { path: '/reports', icon: FileText, label: 'Laporan', permission: 'reports' },
   { path: '/settings', icon: Settings, label: 'Pengaturan', permission: 'settings' },
@@ -65,12 +67,28 @@ const bottomNavItems = allBottomNavItems.filter(item => {
 })
 
 export default function Layout({ children }) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  // On desktop, sidebar is always visible. On mobile/Android, it's a drawer
+  const [drawerOpen, setDrawerOpen] = useState(!isAndroid && window.innerWidth >= 768)
   const [syncStatus, setSyncStatus] = useState({ isOnline: false, isSyncing: false })
   const [showNotifications, setShowNotifications] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const { products } = useProductStore()
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      // Auto-open sidebar on desktop
+      if (!mobile && !isAndroid) {
+        setDrawerOpen(true)
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Calculate low stock alerts
   const lowStockProducts = products.filter(p => p.stock <= (p.minStock || 5) && p.stock > 0)
@@ -246,8 +264,8 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      {/* Drawer Overlay */}
-      {drawerOpen && (
+      {/* Drawer Overlay - Only on mobile */}
+      {drawerOpen && isMobile && (
         <div 
           className="fixed inset-0 bg-black/50 z-50"
           onClick={closeDrawer}
@@ -256,7 +274,9 @@ export default function Layout({ children }) {
 
       {/* Drawer / Side Menu */}
       <aside
-        className={`fixed top-0 left-0 h-full w-[85vw] max-w-xs bg-dark text-white z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+        className={`fixed top-0 left-0 h-full bg-dark text-white z-50 transform transition-transform duration-300 ease-out flex flex-col ${
+          isMobile ? 'w-[85vw] max-w-xs' : 'w-64'
+        } ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -326,7 +346,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 overflow-y-auto ${isAndroid ? 'pb-20' : 'pb-16'}`}>
+      <main className={`flex-1 overflow-y-auto ${isAndroid ? 'pb-20' : 'pb-16'} ${drawerOpen && !isMobile ? 'ml-64' : ''} transition-all duration-300`}>
         {children}
       </main>
 

@@ -1,34 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { useSalesOrderStore } from '../store/salesOrderStore'
+import { useTransactionStore } from '../store/transactionStore'
+import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
 
 export default function Sales() {
   const [showModal, setShowModal] = useState(false)
   const [editingSale, setEditingSale] = useState(null)
-  const [salesOrders, setSalesOrders] = useState([
-    {
-      id: 'SO001',
-      date: '2025-12-06',
-      customer: { id: 2, name: 'Budi Santoso' },
-      items: [
-        { id: 1, name: 'Indomie Goreng', sku: 'SJA123456', costPrice: 2500, price: 3000, minPrice: 2875, qty: 100, isPackage: false },
-        { id: 2, name: 'Aqua 600ml', sku: 'SJA234567', costPrice: 3000, price: 3500, minPrice: 3450, qty: 50, isPackage: false }
-      ],
-      subtotal: 475000,
-      discount: 25000,
-      total: 450000,
-      status: 'pending',
-      dueDate: '2025-12-13',
-      notes: 'Pengiriman ke alamat kantor'
-    }
-  ])
   
-  const { products } = useProductStore()
+  const { salesOrders, addSalesOrder, updateSalesOrder, deleteSalesOrder, updateStatus } = useSalesOrderStore()
+  const { products, updateStock } = useProductStore()
   const { customers } = useCustomerStore()
   const { storeInfo } = useSettingsStore()
+  const { addTransaction } = useTransactionStore()
+  const { user } = useAuthStore()
 
   const handleAddSale = () => {
     setEditingSale(null)
@@ -42,12 +31,78 @@ export default function Sales() {
 
   const handleDelete = (id) => {
     if (confirm('Hapus sales order ini?')) {
-      setSalesOrders(salesOrders.filter(s => s.id !== id))
+      deleteSalesOrder(id)
+    }
+  }
+
+  const handleMarkAsPaid = async (sale) => {
+    if (sale.status === 'completed') {
+      alert('Sales order ini sudah lunas!')
+      return
+    }
+    
+    if (!confirm(`Tandai SO ${sale.id} sebagai LUNAS?\n\nIni akan:\n- Mencatat transaksi penjualan\n- Mengubah status menjadi Lunas\n\n(Stok sudah dikurangi saat SO dibuat)`)) {
+      return
+    }
+
+    try {
+      // Stok sudah dikurangi saat SO dibuat, jadi langsung catat transaksi
+      
+      // Create transaction record
+      const transaction = {
+        items: sale.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          sku: item.sku,
+          price: item.price,
+          quantity: item.qty,
+          cost: item.cost || 0
+        })),
+        customer: sale.customer,
+        subtotal: sale.subtotal,
+        discount: sale.discount || 0,
+        tax: 0,
+        total: sale.total,
+        paymentMethod: 'transfer',
+        cashAmount: sale.total,
+        change: 0,
+        cashierName: user?.name || 'Admin',
+        cashierId: user?.id,
+        source: 'sales_order',
+        salesOrderId: sale.id,
+        notes: `Pembayaran SO: ${sale.id}`
+      }
+      
+      await addTransaction(transaction)
+
+      // 3. Update SO status to completed
+      await updateStatus(sale.id, 'completed')
+
+      alert('✓ Sales Order berhasil ditandai LUNAS!\n\nStok sudah dikurangi dan transaksi tercatat.')
+    } catch (error) {
+      console.error('Error marking as paid:', error)
+      alert('Gagal memproses: ' + error.message)
     }
   }
 
   const handlePrint = (sale) => {
-    const printWindow = window.open('', '', 'width=800,height=600')
+    const printWindow = window.open('', '_blank', 'width=800,height=600')
+    if (!printWindow) {
+      alert('Popup diblokir! Izinkan popup untuk mencetak invoice.')
+      return
+    }
+    
+    // Handle undefined values
+    const subtotal = sale.subtotal || 0
+    const discount = sale.discount || 0
+    const total = sale.total || 0
+    const customerName = sale.customer?.name || 'Customer'
+    const storeName = storeInfo?.name || 'Toko Saya'
+    const storeAddress = storeInfo?.address || ''
+    const storePhone = storeInfo?.phone || '-'
+    const storeEmail = storeInfo?.email || '-'
+    const storeLogo = storeInfo?.logo || ''
+    
     const content = `
       <!DOCTYPE html>
       <html>
@@ -55,34 +110,34 @@ export default function Sales() {
         <title>Invoice - ${sale.id}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 40px; }
-          .invoice-header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .logo-section { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 15px; }
-          .logo { width: 80px; height: 80px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 12px; display: flex; align-items: center; justify-center; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3); overflow: hidden; }
+          body { font-family: Arial, sans-serif; padding: 15px; font-size: 10px; }
+          .invoice-header { text-align: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+          .logo-section { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
+          .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 6px; display: flex; align-items: center; justify-center; overflow: hidden; }
           .logo img { width: 100%; height: 100%; object-fit: contain; }
-          .logo svg { width: 50px; height: 50px; color: white; }
+          .logo svg { width: 24px; height: 24px; color: white; }
           .company-info { text-align: center; }
-          .company-info h2 { font-size: 24px; color: #1e293b; font-weight: bold; margin-bottom: 4px; }
-          .company-info p { font-size: 13px; color: #64748b; line-height: 1.5; }
-          .invoice-header h1 { font-size: 28px; color: #2563eb; margin-bottom: 5px; }
-          .invoice-header p { color: #666; }
-          .invoice-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
-          .info-section h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
-          .info-section p { font-size: 16px; margin-bottom: 4px; }
-          .invoice-id { font-size: 20px; font-weight: bold; color: #2563eb; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th { background: #f3f4f6; padding: 12px; text-align: left; font-size: 12px; color: #666; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; }
-          td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+          .company-info h2 { font-size: 12px; color: #1e293b; font-weight: bold; margin-bottom: 2px; }
+          .company-info p { font-size: 8px; color: #64748b; line-height: 1.3; }
+          .invoice-header h1 { font-size: 14px; color: #2563eb; margin-bottom: 2px; }
+          .invoice-header p { color: #666; font-size: 8px; }
+          .invoice-info { display: flex; justify-content: space-between; margin-bottom: 10px; }
+          .info-section h3 { font-size: 8px; color: #666; margin-bottom: 2px; }
+          .info-section p { font-size: 9px; margin-bottom: 2px; }
+          .invoice-id { font-size: 10px; font-weight: bold; color: #2563eb; }
+          table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+          th { background: #f3f4f6; padding: 4px 6px; text-align: left; font-size: 8px; color: #666; text-transform: uppercase; border-bottom: 1px solid #e5e7eb; }
+          td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; font-size: 9px; }
           .text-right { text-align: right; }
           .text-center { text-align: center; }
-          .total-section { margin-top: 20px; float: right; width: 300px; }
-          .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
-          .total-row.grand { font-size: 18px; font-weight: bold; border-top: 2px solid #333; padding-top: 12px; margin-top: 8px; }
-          .notes { margin-top: 40px; padding: 15px; background: #f9fafb; border-left: 4px solid #2563eb; }
-          .notes h4 { font-size: 14px; margin-bottom: 8px; }
-          .footer { margin-top: 60px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; }
+          .total-section { margin-top: 8px; float: right; width: 180px; }
+          .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 9px; }
+          .total-row.grand { font-size: 11px; font-weight: bold; border-top: 1px solid #333; padding-top: 6px; margin-top: 4px; }
+          .notes { margin-top: 15px; padding: 8px; background: #f9fafb; border-left: 2px solid #2563eb; font-size: 8px; }
+          .notes h4 { font-size: 9px; margin-bottom: 4px; }
+          .footer { margin-top: 20px; text-align: center; color: #666; font-size: 8px; border-top: 1px solid #e5e7eb; padding-top: 8px; }
           @media print {
-            body { padding: 20px; }
+            body { padding: 10px; }
             .no-print { display: none; }
           }
         </style>
@@ -91,8 +146,8 @@ export default function Sales() {
         <div class="invoice-header">
           <div class="logo-section">
             <div class="logo">
-              ${storeInfo.logo ? 
-                `<img src="${storeInfo.logo}" alt="Logo" />` : 
+              ${storeLogo ? 
+                `<img src="${storeLogo}" alt="Logo" />` : 
                 `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M20 7h-9"></path>
                   <path d="M14 17H5"></path>
@@ -102,9 +157,9 @@ export default function Sales() {
               }
             </div>
             <div class="company-info">
-              <h2>${storeInfo.name}</h2>
-              <p>${storeInfo.address}<br/>
-              Telp: ${storeInfo.phone} | Email: ${storeInfo.email}</p>
+              <h2>${storeName}</h2>
+              <p>${storeAddress}<br/>
+              Telp: ${storePhone} | Email: ${storeEmail}</p>
             </div>
           </div>
           <h1>INVOICE</h1>
@@ -116,13 +171,13 @@ export default function Sales() {
             <h3>Invoice No:</h3>
             <p class="invoice-id">${sale.id}</p>
             <h3 style="margin-top: 15px;">Tanggal:</h3>
-            <p>${new Date(sale.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p>${new Date(sale.date || new Date()).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
           <div class="info-section" style="text-align: right;">
             <h3>Pelanggan:</h3>
-            <p style="font-weight: bold; font-size: 18px;">${sale.customer.name}</p>
+            <p style="font-weight: bold; font-size: 18px;">${customerName}</p>
             <h3 style="margin-top: 15px;">Jatuh Tempo:</h3>
-            <p>${new Date(sale.dueDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p>${new Date(sale.dueDate || new Date()).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
         </div>
 
@@ -154,15 +209,15 @@ export default function Sales() {
         <div class="total-section">
           <div class="total-row">
             <span>Subtotal:</span>
-            <span>Rp ${sale.subtotal.toLocaleString('id-ID')}</span>
+            <span>Rp ${subtotal.toLocaleString('id-ID')}</span>
           </div>
           <div class="total-row">
             <span>Diskon:</span>
-            <span style="color: #ef4444;">- Rp ${sale.discount.toLocaleString('id-ID')}</span>
+            <span style="color: #ef4444;">- Rp ${discount.toLocaleString('id-ID')}</span>
           </div>
           <div class="total-row grand">
             <span>TOTAL:</span>
-            <span style="color: #16a34a;">Rp ${sale.total.toLocaleString('id-ID')}</span>
+            <span style="color: #16a34a;">Rp ${total.toLocaleString('id-ID')}</span>
           </div>
         </div>
 
@@ -198,8 +253,9 @@ export default function Sales() {
     const badges = {
       pending: 'badge badge-warning',
       confirmed: 'badge badge-info',
-      processing: 'badge badge-info',
+      processing: 'badge badge-primary',
       delivered: 'badge badge-success',
+      completed: 'badge badge-success',
       cancelled: 'badge badge-danger'
     }
     return badges[status] || 'badge'
@@ -211,6 +267,7 @@ export default function Sales() {
       confirmed: 'Dikonfirmasi',
       processing: 'Diproses',
       delivered: 'Terkirim',
+      completed: 'Lunas',
       cancelled: 'Dibatalkan'
     }
     return labels[status] || status
@@ -252,9 +309,9 @@ export default function Sales() {
           </p>
         </div>
         <div className="card">
-          <p className="text-sm text-gray-600">Selesai</p>
+          <p className="text-sm text-gray-600">Lunas</p>
           <p className="text-2xl font-bold mt-1 text-success">
-            {salesOrders.filter(s => s.status === 'delivered').length}
+            {salesOrders.filter(s => s.status === 'completed').length}
           </p>
         </div>
       </div>
@@ -265,7 +322,7 @@ export default function Sales() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. SO</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">No. Pesanan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pelanggan</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
@@ -279,7 +336,7 @@ export default function Sales() {
               {salesOrders.map((sale) => (
                 <tr key={sale.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap font-mono font-semibold">
-                    {sale.id}
+                    {sale.orderNumber || sale.id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {new Date(sale.date).toLocaleDateString('id-ID')}
@@ -311,6 +368,15 @@ export default function Sales() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                    {sale.status !== 'completed' && (
+                      <button
+                        onClick={() => handleMarkAsPaid(sale)}
+                        className="text-emerald-600 hover:text-emerald-700"
+                        title="Tandai Lunas"
+                      >
+                        <CheckCircle size={18} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handlePrint(sale)}
                       className="text-green-600 hover:text-green-700"
@@ -321,12 +387,14 @@ export default function Sales() {
                     <button
                       onClick={() => handleEdit(sale)}
                       className="text-primary hover:text-blue-700"
+                      title="Edit"
                     >
                       <Edit size={18} />
                     </button>
                     <button
                       onClick={() => handleDelete(sale.id)}
                       className="text-red-600 hover:text-red-700"
+                      title="Hapus"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -348,14 +416,18 @@ export default function Sales() {
             setShowModal(false)
             setEditingSale(null)
           }}
-          onSubmit={(sale) => {
+          onSubmit={async (sale) => {
             if (editingSale) {
-              setSalesOrders(salesOrders.map(s => s.id === sale.id ? sale : s))
+              await updateSalesOrder(sale.id, sale)
               setShowModal(false)
               setEditingSale(null)
             } else {
-              setSalesOrders([...salesOrders, { ...sale, id: `SO${String(salesOrders.length + 1).padStart(3, '0')}` }])
-              // Tidak menutup modal untuk bisa input sales order baru lagi
+              // Kurangi stok saat buat SO baru
+              for (const item of sale.items) {
+                await updateStock(item.id, item.qty, 'subtract', 'sales_order', `SO: ${sale.orderNumber || 'New'}`, user?.id)
+              }
+              await addSalesOrder(sale)
+              alert('✓ Sales Order berhasil dibuat!\nStok produk sudah dikurangi.')
             }
           }}
         />
@@ -535,8 +607,22 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
               <select
                 value={formData.customer?.id || ''}
                 onChange={(e) => {
-                  const customer = customers.find(c => c.id === parseInt(e.target.value))
-                  setFormData({ ...formData, customer })
+                  const customer = customers.find(c => c.id === e.target.value)
+                  if (customer) {
+                    // Update existing items with customer's custom prices
+                    const updatedItems = formData.items.map(item => {
+                      const customPrice = customer.customPrices?.[item.id]
+                      if (customPrice) {
+                        return { ...item, price: customPrice }
+                      }
+                      // Reset to default price if no custom price
+                      const product = products.find(p => p.id === item.id)
+                      return { ...item, price: product?.price || item.price }
+                    })
+                    setFormData({ ...formData, customer, items: updatedItems })
+                  } else {
+                    setFormData({ ...formData, customer: null })
+                  }
                 }}
                 className="input"
                 required
@@ -617,35 +703,49 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
                 {/* Dropdown List */}
                 {showProductDropdown && filteredProducts.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
-                    {filteredProducts.map(p => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => addItem(p)}
-                        className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{p.name}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-xs text-gray-500">{p.sku || p.code}</p>
-                              <span className="text-xs text-gray-400">|</span>
-                              <p className="text-xs text-gray-500">{p.category}</p>
-                              {p.isPackage && (
+                    {filteredProducts.map(p => {
+                      const customerPrice = getCustomerPrice(p, formData.customer)
+                      const hasCustomPrice = formData.customer?.customPrices?.[p.id]
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => addItem(p)}
+                          className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">{p.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-gray-500">{p.sku || p.code}</p>
+                                <span className="text-xs text-gray-400">|</span>
+                                <p className="text-xs text-gray-500">{p.category}</p>
+                                {p.isPackage && (
+                                  <>
+                                    <span className="text-xs text-gray-400">|</span>
+                                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Paket</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right ml-4">
+                              {hasCustomPrice ? (
                                 <>
-                                  <span className="text-xs text-gray-400">|</span>
-                                  <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Paket</span>
+                                  <p className="font-semibold text-green-600">Rp {customerPrice.toLocaleString('id-ID')}</p>
+                                  <p className="text-xs text-gray-400 line-through">Rp {p.price.toLocaleString('id-ID')}</p>
+                                  <p className="text-xs text-green-600">✓ Harga Khusus</p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="font-semibold text-primary">Rp {p.price.toLocaleString('id-ID')}</p>
+                                  <p className="text-xs text-gray-600">Stok: {p.stock} {p.unit}</p>
                                 </>
                               )}
                             </div>
                           </div>
-                          <div className="text-right ml-4">
-                            <p className="font-semibold text-primary">Rp {p.price.toLocaleString('id-ID')}</p>
-                            <p className="text-xs text-gray-600">Stok: {p.stock} {p.unit}</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
                 

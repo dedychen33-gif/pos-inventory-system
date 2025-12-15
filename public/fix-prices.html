@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Prices - POS System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .btn {
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .log {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>Fix Prices - POS System</h1>
+    <p>Tool ini akan memperbaiki data harga di localStorage yang hilang setelah restore.</p>
+    
+    <div>
+        <button class="btn" onclick="checkData()">1. Cek Data</button>
+        <button class="btn" onclick="restoreFromBackup()">2. Restore dari Backup</button>
+        <button class="btn" onclick="fixPrices()">3. Fix Prices</button>
+        <button class="btn" onclick="clearAndReload()">4. Clear & Reload</button>
+    </div>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            logDiv.innerHTML += `<div class="${className}">${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function checkData() {
+            log('=== Checking localStorage data ===');
+            try {
+                const data = JSON.parse(localStorage.getItem('product-storage') || '{}');
+                const products = data.state?.products || [];
+                
+                log(`Found ${products.length} products`, 'info');
+                
+                if (products.length > 0) {
+                    const firstProduct = products[0];
+                    log(`First product: ${firstProduct.name}`, 'info');
+                    log(`First product price: ${firstProduct.price}`, firstProduct.price > 0 ? 'success' : 'error');
+                    log(`First product cost: ${firstProduct.cost}`, 'info');
+                    
+                    // Count products with price
+                    const withPrice = products.filter(p => p.price > 0).length;
+                    log(`Products with price > 0: ${withPrice}/${products.length}`, withPrice > 0 ? 'success' : 'error');
+                } else {
+                    log('No products found!', 'error');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function restoreFromBackup() {
+            log('=== Restore from Backup ===');
+            log('Please use the Settings page to restore from backup file', 'info');
+            log('Go to: http://localhost:3001/settings', 'info');
+        }
+
+        function fixPrices() {
+            log('=== Fixing Prices ===');
+            try {
+                const data = JSON.parse(localStorage.getItem('product-storage') || '{}');
+                const products = data.state?.products || [];
+                
+                if (products.length === 0) {
+                    log('No products to fix. Please restore from backup first.', 'error');
+                    return;
+                }
+                
+                log(`Processing ${products.length} products...`, 'info');
+                
+                // Fix each product
+                const fixedProducts = products.map(p => ({
+                    ...p,
+                    // Ensure both cost and costPrice are set
+                    cost: p.cost || p.costPrice || 0,
+                    costPrice: p.costPrice || p.cost || 0,
+                    // Ensure price is set
+                    price: p.price || p.sellingPrice || 0,
+                    // Ensure stock fields
+                    stock: p.stock || 0,
+                    minStock: p.minStock || p.min_stock || 5
+                }));
+                
+                // Count fixed
+                const beforeWithPrice = products.filter(p => p.price > 0).length;
+                const afterWithPrice = fixedProducts.filter(p => p.price > 0).length;
+                
+                log(`Before fix: ${beforeWithPrice} products with price`, 'info');
+                log(`After fix: ${afterWithPrice} products with price`, afterWithPrice > beforeWithPrice ? 'success' : 'info');
+                
+                // Save back
+                data.state.products = fixedProducts;
+                localStorage.setItem('product-storage', JSON.stringify(data));
+                
+                log('✅ Prices fixed! Reloading page...', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:3001/products';
+                }, 2000);
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAndReload() {
+            if (confirm('This will clear ALL localStorage data. Continue?')) {
+                log('=== Clearing localStorage ===');
+                localStorage.clear();
+                log('✅ Cleared! Reloading...', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        }
+
+        // Auto check on load
+        window.onload = () => {
+            log('=== Fix Prices Tool Loaded ===', 'success');
+            log('Click "1. Cek Data" to check current data', 'info');
+            checkData();
+        };
+    </script>
+</body>
+</html>

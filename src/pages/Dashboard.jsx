@@ -10,7 +10,6 @@ import {
   Bell,
   X,
   MessageCircle,
-  Store,
   Percent,
   Warehouse,
   Truck,
@@ -23,25 +22,14 @@ import { useProductStore } from '../store/productStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useSettingsStore } from '../store/settingsStore'
-import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore'
 import { Link } from 'react-router-dom'
 import { isAndroid } from '../utils/platform'
-
-// Component to render marketplace logo
-const MarketplaceLogo = ({ platform, size = 24 }) => {
-  const platformInfo = PLATFORM_INFO[platform] || PLATFORM_INFO.manual
-  if (platformInfo.logo) {
-    return <span dangerouslySetInnerHTML={{ __html: platformInfo.logo(size) }} />
-  }
-  return <span className="text-xl">{platformInfo.icon || '📦'}</span>
-}
 
 export default function Dashboard() {
   const { products, getLowStockProducts } = useProductStore()
   const { transactions, getTodaySales, getTodayTransactions } = useTransactionStore()
   const { customers } = useCustomerStore()
   const { whatsappNumber, getWhatsAppLink } = useSettingsStore()
-  const { stores, getSummary } = useMarketplaceStore()
   
   const [showLowStockAlert, setShowLowStockAlert] = useState(false)
   const [dismissedAlerts, setDismissedAlerts] = useState([])
@@ -49,7 +37,6 @@ export default function Dashboard() {
   const todaySales = getTodaySales()
   const todayTransactions = getTodayTransactions()
   const lowStockProducts = getLowStockProducts()
-  const marketplaceSummary = getSummary()
   
   // Calculate profit today (estimate based on cost)
   const todayProfit = todayTransactions.reduce((sum, t) => {
@@ -403,51 +390,6 @@ export default function Dashboard() {
           })}
         </div>
       </div>
-
-      {/* Marketplace Summary */}
-      {stores.length > 0 && (
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Store className="text-primary" size={24} />
-              Marketplace Terhubung
-            </h2>
-            <Link to="/marketplace/integration" className="text-primary hover:underline text-sm">
-              Kelola Toko
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {stores.filter(s => s.isActive).slice(0, 4).map((store) => {
-              const platformInfo = PLATFORM_INFO[store.platform] || PLATFORM_INFO.manual
-              return (
-                <div 
-                  key={store.id} 
-                  className={`${platformInfo.bgLight} ${platformInfo.borderColor} border rounded-lg p-4`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <MarketplaceLogo platform={store.platform} size={28} />
-                    <span className={`text-sm font-medium ${platformInfo.textColor}`}>
-                      {platformInfo.name}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-gray-900 truncate">{store.shopName}</p>
-                  <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                    <span>{store.productCount || 0} produk</span>
-                    {store.isConnected && (
-                      <span className="text-green-600">● Online</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-          {stores.length > 4 && (
-            <p className="text-center text-sm text-gray-500 mt-3">
-              +{stores.length - 4} toko lainnya
-            </p>
-          )}
-        </div>
-      )}
 
       {/* Profit Summary Card */}
       <div className="card bg-gradient-to-r from-green-500 to-emerald-600 text-white">

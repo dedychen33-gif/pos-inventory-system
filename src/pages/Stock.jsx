@@ -14,11 +14,14 @@ export default function Stock() {
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
+    { id: 'damaged', label: 'Stok Rusak' },
     { id: 'adjustment', label: 'Penyesuaian Stok' },
     { id: 'history', label: 'Riwayat Stok' },
     { id: 'opname', label: 'Stock Opname' },
     { id: 'transfer', label: 'Transfer Stok' },
   ]
+  
+  const totalDamagedStock = products.reduce((sum, p) => sum + (p.damagedStock || 0), 0)
 
   return (
     <div className={`${isAndroid ? 'p-4' : 'p-6'} space-y-4`}>
@@ -94,6 +97,7 @@ export default function Stock() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && <StockOverview products={products} />}
+      {activeTab === 'damaged' && <DamagedStock products={products} />}
       {activeTab === 'adjustment' && <StockAdjustment products={products} updateStock={updateStock} user={user} />}
       {activeTab === 'history' && <StockHistory stockHistory={stockHistory || []} />}
       {activeTab === 'opname' && <StockOpname products={products} />}
@@ -146,6 +150,74 @@ function StockOverview({ products }) {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function DamagedStock({ products }) {
+  const damagedProducts = products.filter(p => (p.damagedStock || 0) > 0)
+  const totalDamaged = products.reduce((sum, p) => sum + (p.damagedStock || 0), 0)
+  const totalDamagedValue = products.reduce((sum, p) => sum + ((p.damagedStock || 0) * (p.cost || p.price || 0)), 0)
+
+  return (
+    <div className="card">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-bold">Stok Barang Rusak</h3>
+          <p className="text-sm text-gray-500">Barang rusak dari retur pelanggan</p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold text-red-600">{totalDamaged} unit</p>
+          <p className="text-sm text-gray-500">Nilai: Rp {totalDamagedValue.toLocaleString('id-ID')}</p>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stok Normal</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stok Rusak</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Nilai Rusak</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {damagedProducts.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                  Tidak ada barang rusak
+                </td>
+              </tr>
+            ) : (
+              damagedProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap font-mono text-sm">
+                    {product.code || product.sku || '-'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-medium">{product.name}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {product.category || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right font-medium">
+                    {product.stock || 0}
+                  </td>
+                  <td className="px-6 py-4 text-right font-bold text-red-600">
+                    {product.damagedStock || 0}
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm">
+                    Rp {((product.damagedStock || 0) * (product.cost || product.price || 0)).toLocaleString('id-ID')}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
