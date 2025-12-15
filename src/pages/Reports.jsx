@@ -543,7 +543,7 @@ function SalesReport({ transactions, dateRange, customStartDate, customEndDate }
     })
   }
 
-  const completedTransactions = filterByDate(transactions).filter((t) => t.status === 'completed')
+  const completedTransactions = filterByDate(transactions).filter((t) => !t.status || t.status === 'completed')
   const totalSales = completedTransactions.reduce((sum, t) => sum + t.total, 0)
   const totalTax = completedTransactions.reduce((sum, t) => sum + t.tax, 0)
   const totalDiscount = completedTransactions.reduce((sum, t) => sum + t.discount, 0)
