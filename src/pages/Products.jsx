@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrC
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
+import { takePhoto } from '../utils/camera'
 import BarcodeScanner from '../components/BarcodeScanner'
 import BarcodeGenerator, { BarcodeImage } from '../components/BarcodeGenerator'
 import { marketplaceService } from '../services/marketplaceApi'
@@ -1276,6 +1277,18 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
     }
   }
 
+  // Handle camera photo for Android
+  const handleCameraPhoto = async (index) => {
+    const result = await takePhoto('prompt')
+    if (result.success && result.dataUrl) {
+      const newPhotos = [...(formData.photos || [])]
+      newPhotos[index] = result.dataUrl
+      setFormData({ ...formData, photos: newPhotos })
+    } else if (result.error && result.error !== 'cancelled') {
+      alert('Gagal mengambil foto: ' + result.error)
+    }
+  }
+
   const removePhoto = (index) => {
     const newPhotos = [...(formData.photos || [])]
     newPhotos[index] = null
@@ -2046,16 +2059,27 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                       </button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                      <ImageIcon size={32} className="text-gray-400 mb-2" />
-                      <span className="text-xs text-gray-500">Upload Foto {index + 1}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handlePhotoUpload(e, index)}
-                        className="hidden"
-                      />
-                    </label>
+                    isAndroid ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCameraPhoto(index)}
+                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 bg-white"
+                      >
+                        <Camera size={32} className="text-primary mb-2" />
+                        <span className="text-xs text-gray-500">Ambil Foto {index + 1}</span>
+                      </button>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <ImageIcon size={32} className="text-gray-400 mb-2" />
+                        <span className="text-xs text-gray-500">Upload Foto {index + 1}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handlePhotoUpload(e, index)}
+                          className="hidden"
+                        />
+                      </label>
+                    )
                   )}
                 </div>
               ))}
