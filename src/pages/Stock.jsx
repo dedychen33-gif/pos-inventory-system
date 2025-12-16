@@ -430,15 +430,304 @@ function StockHistory({ stockHistory }) {
 }
 
 function StockOpname({ products }) {
+  const { updateStock } = useProductStore()
+  const { user } = useAuthStore()
+  const [isOpnameActive, setIsOpnameActive] = useState(false)
+  const [opnameData, setOpnameData] = useState([])
+  const [opnameHistory, setOpnameHistory] = useState(() => {
+    const saved = localStorage.getItem('stock-opname-history')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const startOpname = () => {
+    // Initialize opname data with current products
+    const initialData = products.map(p => ({
+      productId: p.id,
+      productName: p.name,
+      productCode: p.code || p.sku,
+      category: p.category,
+      unit: p.unit,
+      systemStock: p.stock,
+      actualStock: '',
+      difference: 0,
+      note: ''
+    }))
+    setOpnameData(initialData)
+    setIsOpnameActive(true)
+  }
+
+  const updateActualStock = (productId, value) => {
+    setOpnameData(prev => prev.map(item => {
+      if (item.productId === productId) {
+        const actual = value === '' ? '' : parseInt(value) || 0
+        return {
+          ...item,
+          actualStock: actual,
+          difference: actual === '' ? 0 : actual - item.systemStock
+        }
+      }
+      return item
+    }))
+  }
+
+  const updateNote = (productId, note) => {
+    setOpnameData(prev => prev.map(item => 
+      item.productId === productId ? { ...item, note } : item
+    ))
+  }
+
+  const saveOpname = async () => {
+    // Filter items that have been counted
+    const countedItems = opnameData.filter(item => item.actualStock !== '')
+    
+    if (countedItems.length === 0) {
+      alert('Belum ada produk yang dihitung!')
+      return
+    }
+
+    const itemsWithDifference = countedItems.filter(item => item.difference !== 0)
+    
+    if (!confirm(`Simpan hasil stock opname?\n\n${countedItems.length} produk dihitung\n${itemsWithDifference.length} produk ada selisih\n\nStok akan disesuaikan otomatis.`)) {
+      return
+    }
+
+    // Create opname record
+    const opnameRecord = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      countedBy: user?.name || 'System',
+      totalProducts: countedItems.length,
+      productsWithDifference: itemsWithDifference.length,
+      items: countedItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        productCode: item.productCode,
+        systemStock: item.systemStock,
+        actualStock: item.actualStock,
+        difference: item.difference,
+        note: item.note
+      }))
+    }
+
+    // Save to history
+    const newHistory = [opnameRecord, ...opnameHistory]
+    setOpnameHistory(newHistory)
+    localStorage.setItem('stock-opname-history', JSON.stringify(newHistory))
+
+    // Update stock for items with difference
+    for (const item of itemsWithDifference) {
+      await updateStock(
+        item.productId, 
+        item.actualStock, 
+        'set', 
+        'opname', 
+        `Stock Opname: ${item.note || 'Penyesuaian stok fisik'}`,
+        user?.id
+      )
+    }
+
+    alert(`✅ Stock opname berhasil disimpan!\n\n${itemsWithDifference.length} produk telah disesuaikan stoknya.`)
+    setIsOpnameActive(false)
+    setOpnameData([])
+  }
+
+  const cancelOpname = () => {
+    if (!confirm('Batalkan stock opname? Data yang sudah diinput akan hilang.')) return
+    setIsOpnameActive(false)
+    setOpnameData([])
+  }
+
+  const filteredOpnameData = opnameData.filter(item => 
+    item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.productCode?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const deleteOpnameHistory = (id) => {
+    if (!confirm('Hapus riwayat opname ini?')) return
+    const newHistory = opnameHistory.filter(h => h.id !== id)
+    setOpnameHistory(newHistory)
+    localStorage.setItem('stock-opname-history', JSON.stringify(newHistory))
+  }
+
+  if (!isOpnameActive) {
+    return (
+      <div className="space-y-6">
+        {/* Start Opname Card */}
+        <div className="card">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-bold">Stock Opname</h3>
+              <p className="text-sm text-gray-500">Penghitungan fisik stok barang</p>
+            </div>
+            <button onClick={startOpname} className="btn btn-primary">
+              + Mulai Stock Opname
+            </button>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              <strong>Petunjuk:</strong> Stock opname digunakan untuk mencocokkan stok sistem dengan stok fisik di gudang. 
+              Setelah selesai, sistem akan otomatis menyesuaikan stok berdasarkan hasil penghitungan.
+            </p>
+          </div>
+        </div>
+
+        {/* Opname History */}
+        <div className="card">
+          <h3 className="text-lg font-bold mb-4">Riwayat Stock Opname</h3>
+          {opnameHistory.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Belum ada riwayat stock opname</p>
+          ) : (
+            <div className="space-y-4">
+              {opnameHistory.slice(0, 10).map(record => (
+                <div key={record.id} className="border rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-semibold">{new Date(record.date).toLocaleString('id-ID')}</p>
+                      <p className="text-sm text-gray-500">Oleh: {record.countedBy}</p>
+                    </div>
+                    <button 
+                      onClick={() => deleteOpnameHistory(record.id)}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Total Produk:</span>
+                      <span className="ml-2 font-medium">{record.totalProducts}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Ada Selisih:</span>
+                      <span className={`ml-2 font-medium ${record.productsWithDifference > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {record.productsWithDifference}
+                      </span>
+                    </div>
+                  </div>
+                  {record.items && record.items.filter(i => i.difference !== 0).length > 0 && (
+                    <details className="mt-3">
+                      <summary className="text-sm text-blue-600 cursor-pointer">Lihat detail selisih</summary>
+                      <div className="mt-2 text-sm">
+                        {record.items.filter(i => i.difference !== 0).map((item, idx) => (
+                          <div key={idx} className="flex justify-between py-1 border-b last:border-0">
+                            <span>{item.productName}</span>
+                            <span className={item.difference > 0 ? 'text-green-600' : 'text-red-600'}>
+                              {item.difference > 0 ? '+' : ''}{item.difference}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Active Opname View
   return (
-    <div className="card">
-      <h3 className="text-lg font-bold mb-4">Stock Opname</h3>
-      <p className="text-gray-600 mb-4">
-        Fitur stock opname untuk penghitungan fisik stok akan segera hadir.
-      </p>
-      <button className="btn btn-primary">
-        Mulai Stock Opname
-      </button>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-bold">Stock Opname Aktif</h3>
+            <p className="text-sm text-gray-500">Input stok fisik untuk setiap produk</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={cancelOpname} className="btn btn-secondary">Batalkan</button>
+            <button onClick={saveOpname} className="btn btn-primary">Simpan Opname</button>
+          </div>
+        </div>
+        <input
+          type="text"
+          placeholder="Cari produk..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="input"
+        />
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-blue-50 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-blue-600">{opnameData.length}</p>
+          <p className="text-sm text-gray-600">Total Produk</p>
+        </div>
+        <div className="bg-green-50 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-green-600">
+            {opnameData.filter(i => i.actualStock !== '').length}
+          </p>
+          <p className="text-sm text-gray-600">Sudah Dihitung</p>
+        </div>
+        <div className="bg-red-50 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-red-600">
+            {opnameData.filter(i => i.actualStock !== '' && i.difference !== 0).length}
+          </p>
+          <p className="text-sm text-gray-600">Ada Selisih</p>
+        </div>
+      </div>
+
+      {/* Products Table */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stok Sistem</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Stok Fisik</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Selisih</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catatan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredOpnameData.map(item => (
+                <tr key={item.productId} className={`hover:bg-gray-50 ${item.difference !== 0 ? 'bg-red-50' : ''}`}>
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{item.productName}</p>
+                    <p className="text-xs text-gray-500">{item.productCode} • {item.category}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold">
+                    {item.systemStock} {item.unit}
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      value={item.actualStock}
+                      onChange={(e) => updateActualStock(item.productId, e.target.value)}
+                      className="input w-24 text-center mx-auto"
+                      min="0"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {item.actualStock !== '' && (
+                      <span className={`font-bold ${item.difference > 0 ? 'text-green-600' : item.difference < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        {item.difference > 0 ? '+' : ''}{item.difference}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="text"
+                      value={item.note}
+                      onChange={(e) => updateNote(item.productId, e.target.value)}
+                      className="input text-sm"
+                      placeholder="Catatan..."
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
