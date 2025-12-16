@@ -453,7 +453,7 @@ export default function Settings() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault()
               const formData = new FormData(e.target)
               const newPassword = formData.get('newPassword')
@@ -464,12 +464,12 @@ export default function Settings() {
                 return
               }
               
-              const result = updateUser(selectedUser.id, { password: newPassword })
-              if (result.success) {
+              const result = await updateUser(selectedUser.id, { password: newPassword })
+              if (result && result.success) {
                 alert('Password berhasil diubah!')
                 setShowPasswordModal(false)
               } else {
-                alert(result.error)
+                alert(result?.error || 'Gagal mengubah password')
               }
             }}>
               <div className="space-y-4">
@@ -498,7 +498,7 @@ export default function Settings() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault()
               const formData = new FormData(e.target)
               const userData = {
@@ -510,20 +510,20 @@ export default function Settings() {
               
               if (userModalMode === 'add') {
                 userData.password = formData.get('password')
-                const result = addUser(userData)
-                if (result.success) {
+                const result = await addUser(userData)
+                if (result && result.success) {
                   alert('User berhasil ditambahkan!')
                   setShowUserModal(false)
                 } else {
-                  alert(result.error)
+                  alert(result?.error || 'Gagal menambahkan user')
                 }
               } else {
-                const result = updateUser(selectedUser.id, userData)
-                if (result.success) {
+                const result = await updateUser(selectedUser.id, userData)
+                if (result && result.success) {
                   alert('User berhasil diupdate!')
                   setShowUserModal(false)
                 } else {
-                  alert(result.error)
+                  alert(result?.error || 'Gagal mengupdate user')
                 }
               }
             }}>
