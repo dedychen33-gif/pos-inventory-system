@@ -444,15 +444,253 @@ function StockOpname({ products }) {
 }
 
 function StockTransfer({ products }) {
+  const { updateStock } = useProductStore()
+  const { user } = useAuthStore()
+  const [showModal, setShowModal] = useState(false)
+  const [transferHistory, setTransferHistory] = useState(() => {
+    const saved = localStorage.getItem('stock-transfer-history')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [formData, setFormData] = useState({
+    productId: '',
+    quantity: '',
+    fromWarehouse: 'Gudang Utama',
+    toWarehouse: '',
+    note: ''
+  })
+
+  const warehouses = ['Gudang Utama', 'Gudang Cabang 1', 'Gudang Cabang 2', 'Gudang Toko', 'Gudang Retur']
+
+  const handleTransfer = (e) => {
+    e.preventDefault()
+    
+    const product = products.find(p => p.id === formData.productId)
+    if (!product) {
+      alert('Produk tidak ditemukan')
+      return
+    }
+
+    const qty = parseInt(formData.quantity)
+    if (qty <= 0) {
+      alert('Jumlah harus lebih dari 0')
+      return
+    }
+
+    if (qty > product.stock) {
+      alert(`Stok tidak cukup! Stok tersedia: ${product.stock}`)
+      return
+    }
+
+    if (formData.fromWarehouse === formData.toWarehouse) {
+      alert('Gudang asal dan tujuan tidak boleh sama')
+      return
+    }
+
+    // Create transfer record
+    const transfer = {
+      id: Date.now(),
+      productId: product.id,
+      productName: product.name,
+      productCode: product.code || product.sku,
+      quantity: qty,
+      fromWarehouse: formData.fromWarehouse,
+      toWarehouse: formData.toWarehouse,
+      note: formData.note,
+      transferredBy: user?.name || 'System',
+      createdAt: new Date().toISOString()
+    }
+
+    // Save to history
+    const newHistory = [transfer, ...transferHistory]
+    setTransferHistory(newHistory)
+    localStorage.setItem('stock-transfer-history', JSON.stringify(newHistory))
+
+    // Update stock (for demo, we just log it - in real app would update warehouse-specific stock)
+    // updateStock(product.id, qty, 'subtract', 'transfer', `Transfer ke ${formData.toWarehouse}`, user?.id)
+
+    alert(`✅ Transfer berhasil!\n\n${product.name}\nJumlah: ${qty}\nDari: ${formData.fromWarehouse}\nKe: ${formData.toWarehouse}`)
+    
+    setFormData({
+      productId: '',
+      quantity: '',
+      fromWarehouse: 'Gudang Utama',
+      toWarehouse: '',
+      note: ''
+    })
+    setShowModal(false)
+  }
+
+  const handleDeleteTransfer = (id) => {
+    if (!confirm('Hapus riwayat transfer ini?')) return
+    const newHistory = transferHistory.filter(t => t.id !== id)
+    setTransferHistory(newHistory)
+    localStorage.setItem('stock-transfer-history', JSON.stringify(newHistory))
+  }
+
   return (
-    <div className="card">
-      <h3 className="text-lg font-bold mb-4">Transfer Stok Antar Gudang</h3>
-      <p className="text-gray-600 mb-4">
-        Fitur transfer stok untuk multi-gudang akan segera hadir.
-      </p>
-      <button className="btn btn-primary">
-        Transfer Stok
-      </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-bold">Transfer Stok Antar Gudang</h3>
+            <p className="text-sm text-gray-500">Pindahkan stok dari satu gudang ke gudang lain</p>
+          </div>
+          <button onClick={() => setShowModal(true)} className="btn btn-primary">
+            + Transfer Baru
+          </button>
+        </div>
+
+        {/* Warehouse Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          {warehouses.map(wh => {
+            const transfersIn = transferHistory.filter(t => t.toWarehouse === wh).reduce((sum, t) => sum + t.quantity, 0)
+            const transfersOut = transferHistory.filter(t => t.fromWarehouse === wh).reduce((sum, t) => sum + t.quantity, 0)
+            return (
+              <div key={wh} className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-500 truncate">{wh}</p>
+                <p className="text-sm font-semibold text-green-600">+{transfersIn}</p>
+                <p className="text-sm font-semibold text-red-600">-{transfersOut}</p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Transfer History */}
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4">Riwayat Transfer</h3>
+        {transferHistory.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">Belum ada riwayat transfer</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dari</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ke</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Oleh</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {transferHistory.slice(0, 20).map(transfer => (
+                  <tr key={transfer.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {new Date(transfer.createdAt).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{transfer.productName}</p>
+                      <p className="text-xs text-gray-500">{transfer.productCode}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold">{transfer.quantity}</td>
+                    <td className="px-4 py-3 text-sm">{transfer.fromWarehouse}</td>
+                    <td className="px-4 py-3 text-sm">{transfer.toWarehouse}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{transfer.transferredBy}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button 
+                        onClick={() => handleDeleteTransfer(transfer.id)}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Hapus
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Transfer Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Transfer Stok Baru</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Pilih Produk</label>
+                <select 
+                  value={formData.productId}
+                  onChange={(e) => setFormData({...formData, productId: e.target.value})}
+                  className="input"
+                  required
+                >
+                  <option value="">-- Pilih Produk --</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Jumlah</label>
+                <input 
+                  type="number"
+                  value={formData.quantity}
+                  onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                  className="input"
+                  min="1"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Dari Gudang</label>
+                  <select 
+                    value={formData.fromWarehouse}
+                    onChange={(e) => setFormData({...formData, fromWarehouse: e.target.value})}
+                    className="input"
+                    required
+                  >
+                    {warehouses.map(wh => (
+                      <option key={wh} value={wh}>{wh}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ke Gudang</label>
+                  <select 
+                    value={formData.toWarehouse}
+                    onChange={(e) => setFormData({...formData, toWarehouse: e.target.value})}
+                    className="input"
+                    required
+                  >
+                    <option value="">-- Pilih --</option>
+                    {warehouses.filter(wh => wh !== formData.fromWarehouse).map(wh => (
+                      <option key={wh} value={wh}>{wh}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Catatan (opsional)</label>
+                <textarea 
+                  value={formData.note}
+                  onChange={(e) => setFormData({...formData, note: e.target.value})}
+                  className="input"
+                  rows="2"
+                  placeholder="Alasan transfer..."
+                />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary flex-1">
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary flex-1">
+                  Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
