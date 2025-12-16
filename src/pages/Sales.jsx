@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle, ScanLine } from 'lucide-react'
+import BarcodeScanner from '../components/BarcodeScanner'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useSettingsStore } from '../store/settingsStore'
@@ -454,6 +455,7 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
   const [quantity, setQuantity] = useState(1)
   const [productSearch, setProductSearch] = useState('')
   const [showProductDropdown, setShowProductDropdown] = useState(false)
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const dropdownRef = useRef(null)
 
   // Close dropdown when clicking outside
@@ -639,13 +641,25 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
 
             <div>
               <label className="block text-sm font-medium mb-2">No. Pesanan</label>
-              <input
-                type="text"
-                value={formData.orderNumber}
-                onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
-                placeholder="Contoh: PO-2025-001"
-                className="input"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formData.orderNumber}
+                  onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
+                  placeholder="Contoh: PO-2025-001"
+                  className="input flex-1"
+                />
+                {isAndroid && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBarcodeScanner(true)}
+                    className="btn btn-secondary px-3"
+                    title="Scan Barcode"
+                  >
+                    <ScanLine size={20} />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
@@ -895,6 +909,17 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
           </div>
         </form>
       </div>
+
+      {/* Barcode Scanner for No. Pesanan */}
+      {showBarcodeScanner && (
+        <BarcodeScanner
+          onScan={(barcode) => {
+            setFormData({ ...formData, orderNumber: barcode })
+            setShowBarcodeScanner(false)
+          }}
+          onClose={() => setShowBarcodeScanner(false)}
+        />
+      )}
     </div>
   )
 }
