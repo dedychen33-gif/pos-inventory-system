@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText, DollarSign } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Package, Truck, Calendar, FileText, DollarSign, Wallet, CheckCircle } from 'lucide-react'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
+import { useAccountStore } from '../store/accountStore'
 import { isAndroid } from '../utils/platform'
 import PullToRefresh from '../components/PullToRefresh'
 
@@ -10,9 +11,18 @@ export default function Purchases() {
   const [showModal, setShowModal] = useState(false)
   const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedPurchaseForPayment, setSelectedPurchaseForPayment] = useState(null)
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const { purchases, suppliers, addPurchase, updatePurchase, deletePurchase, addSupplier, deleteSupplier } = usePurchaseStore()
   const { products, updateStock } = useProductStore()
   const { user } = useAuthStore()
+  const { accounts, addCashFlow } = useAccountStore()
 
   // Pull to refresh handler
   const handleRefresh = useCallback(async () => {
@@ -59,6 +69,67 @@ export default function Purchases() {
     }
     setShowModal(false)
     setEditingPurchase(null)
+  }
+
+  // Handle mark as paid for purchase
+  const handleMarkAsPaid = (purchase) => {
+    if (purchase.status === 'received' && purchase.isPaid) {
+      alert('Pembelian ini sudah lunas!')
+      return
+    }
+    setSelectedPurchaseForPayment(purchase)
+    setSelectedAccountId(accounts.length > 0 ? accounts[0].id : '')
+    setShowPaymentModal(true)
+  }
+
+  const processPayment = async () => {
+    const purchase = selectedPurchaseForPayment
+    if (!purchase) return
+
+    if (!selectedAccountId) {
+      alert('Pilih rekening sumber pembayaran!')
+      return
+    }
+
+    const selectedAccount = accounts.find(a => a.id === selectedAccountId)
+    if (!selectedAccount) {
+      alert('Rekening tidak ditemukan!')
+      return
+    }
+
+    if ((selectedAccount.balance || 0) < purchase.total) {
+      alert(`Saldo ${selectedAccount.name} tidak cukup!\nSaldo: Rp ${(selectedAccount.balance || 0).toLocaleString('id-ID')}\nTotal: Rp ${purchase.total.toLocaleString('id-ID')}`)
+      return
+    }
+
+    try {
+      // Add cash flow (money out)
+      await addCashFlow({
+        type: 'out',
+        amount: purchase.total,
+        accountId: selectedAccountId,
+        category: 'purchase',
+        description: `Pembelian PO: ${purchase.poNumber || purchase.purchaseNumber || purchase.id}`,
+        referenceId: purchase.id,
+        referenceType: 'purchase'
+      })
+
+      // Update purchase status
+      await updatePurchase(purchase.id, {
+        status: 'received',
+        isPaid: true,
+        paidAt: new Date().toISOString(),
+        paymentAccountId: selectedAccountId,
+        paymentAccountName: selectedAccount.name
+      })
+
+      setShowPaymentModal(false)
+      setSelectedPurchaseForPayment(null)
+      alert('✓ Pembelian berhasil dibayar!\n\nUang keluar dari: ' + selectedAccount.name)
+    } catch (error) {
+      console.error('Error processing payment:', error)
+      alert('Gagal memproses pembayaran: ' + error.message)
+    }
   }
 
   const getStatusBadge = (status) => {
@@ -108,6 +179,46 @@ export default function Purchases() {
         </div>
       </div>
 
+      {/* Search and Filter */}
+      <div className="card">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari PO, supplier..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="all">Semua Status</option>
+            <option value="pending">Pending</option>
+            <option value="received">Diterima</option>
+            <option value="cancelled">Dibatalkan</option>
+          </select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            placeholder="Dari Tanggal"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            placeholder="Sampai Tanggal"
+          />
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="card">
@@ -150,19 +261,49 @@ export default function Purchases() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {purchases.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
-                    <Package size={48} className="mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">Belum ada purchase order</p>
-                    <p className="text-sm mt-1">Klik "Buat Purchase Order" untuk menambah pembelian baru</p>
-                  </td>
-                </tr>
-              ) : (
-                purchases.map((purchase) => (
+              {(() => {
+                // Filter purchases
+                const filteredPurchases = purchases.filter(p => {
+                  // Search filter
+                  if (searchQuery) {
+                    const query = searchQuery.toLowerCase()
+                    const matchPO = (p.poNumber || p.purchaseNumber || '').toLowerCase().includes(query)
+                    const matchSupplier = (p.supplierName || '').toLowerCase().includes(query)
+                    if (!matchPO && !matchSupplier) return false
+                  }
+                  // Status filter
+                  if (statusFilter !== 'all' && p.status !== statusFilter) return false
+                  // Date filter
+                  if (dateFrom) {
+                    const purchaseDate = new Date(p.date)
+                    const fromDate = new Date(dateFrom)
+                    if (purchaseDate < fromDate) return false
+                  }
+                  if (dateTo) {
+                    const purchaseDate = new Date(p.date)
+                    const toDate = new Date(dateTo)
+                    toDate.setHours(23, 59, 59, 999)
+                    if (purchaseDate > toDate) return false
+                  }
+                  return true
+                })
+
+                if (filteredPurchases.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                        <Package size={48} className="mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg font-medium">{purchases.length === 0 ? 'Belum ada purchase order' : 'Tidak ada hasil'}</p>
+                        <p className="text-sm mt-1">{purchases.length === 0 ? 'Klik "Buat Purchase Order" untuk menambah pembelian baru' : 'Coba ubah filter pencarian'}</p>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                return filteredPurchases.map((purchase) => (
                   <tr key={purchase.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap font-mono font-semibold">
-                      {purchase.id}
+                      {purchase.poNumber || purchase.purchaseNumber || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(purchase.date).toLocaleDateString('id-ID')}
@@ -188,6 +329,15 @@ export default function Purchases() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                      {!purchase.isPaid && (
+                        <button
+                          onClick={() => handleMarkAsPaid(purchase)}
+                          className="text-green-600 hover:text-green-700"
+                          title="Bayar"
+                        >
+                          <CheckCircle size={18} />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEdit(purchase)}
                         className="text-primary hover:text-blue-700"
@@ -203,7 +353,7 @@ export default function Purchases() {
                     </td>
                   </tr>
                 ))
-              )}
+              })()}
             </tbody>
           </table>
         </div>
@@ -232,6 +382,75 @@ export default function Purchases() {
           onDelete={deleteSupplier}
         />
       )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedPurchaseForPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Konfirmasi Pembayaran</h3>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-red-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Purchase Order</p>
+                <p className="font-bold text-lg">{selectedPurchaseForPayment.poNumber || selectedPurchaseForPayment.purchaseNumber || selectedPurchaseForPayment.id}</p>
+                <p className="text-sm text-gray-600 mt-1">Supplier: {selectedPurchaseForPayment.supplierName}</p>
+                <p className="text-sm text-gray-600 mt-2">Total Pembayaran</p>
+                <p className="font-bold text-2xl text-red-600">
+                  Rp {(selectedPurchaseForPayment.total || 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <Wallet size={16} className="inline mr-1" />
+                  Bayar dari Rekening *
+                </label>
+                {accounts.length === 0 ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800">
+                      Belum ada rekening. Tambahkan rekening di menu Pengaturan → Kelola Rekening.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                    className="input"
+                  >
+                    {accounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.type === 'cash' ? 'Kas' : account.type === 'bank' ? 'Bank' : 'E-Wallet'})
+                        {' - Saldo: Rp ' + (account.balance || 0).toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={processPayment}
+                  disabled={accounts.length === 0}
+                  className="flex-1 btn btn-danger"
+                >
+                  Konfirmasi Pembayaran
+                </button>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 btn btn-secondary"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </PullToRefresh>
   )
@@ -243,11 +462,11 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
     items: [],
     date: new Date().toISOString().split('T')[0],
     status: 'pending',
-    notes: ''
+    notes: '',
+    poNumber: ''
   })
 
   const [productSearch, setProductSearch] = useState('')
-  const [quantity, setQuantity] = useState(1)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const dropdownRef = useRef(null)
 
@@ -273,13 +492,15 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
 
     const existingItem = formData.items.find(i => i.productId === product.id)
     if (existingItem) {
+      // Product already exists, just increment by 1
       setFormData({
         ...formData,
         items: formData.items.map(i =>
-          i.productId === product.id ? { ...i, qty: i.qty + quantity } : i
+          i.productId === product.id ? { ...i, qty: i.qty + 1 } : i
         )
       })
     } else {
+      // Add new product with qty 0 - user will enter manually
       setFormData({
         ...formData,
         items: [...formData.items, {
@@ -287,14 +508,13 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
           name: product.name,
           sku: product.sku,
           costPrice: product.costPrice || 0,
-          qty: quantity
+          qty: 0
         }]
       })
     }
 
     setProductSearch('')
     setShowProductDropdown(false)
-    setQuantity(1)
   }
 
   const updateItemQty = (productId, newQty) => {
@@ -360,7 +580,18 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">No. PO</label>
+              <input
+                type="text"
+                value={formData.poNumber || ''}
+                onChange={(e) => setFormData({ ...formData, poNumber: e.target.value })}
+                placeholder="Contoh: SJAPO/1234567"
+                className="input"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium mb-2">Supplier *</label>
               <select
@@ -393,45 +624,35 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
           {/* Add Products */}
           <div>
             <label className="block text-sm font-medium mb-2">Tambah Produk</label>
-            <div className="flex gap-2">
-              <div className="flex-1 relative" ref={dropdownRef}>
-                <input
-                  type="text"
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value)
-                    setShowProductDropdown(true)
-                  }}
-                  onFocus={() => setShowProductDropdown(true)}
-                  placeholder="Cari produk (nama atau SKU)..."
-                  className="input"
-                />
-                {showProductDropdown && filteredProducts.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredProducts.map(product => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        onClick={() => addItem(product)}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
-                      >
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-gray-600">
-                          SKU: {product.sku} | Modal: Rp {product.costPrice?.toLocaleString('id-ID')}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+            <div className="relative" ref={dropdownRef}>
               <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-                min="1"
-                className="input w-24"
-                placeholder="Qty"
+                type="text"
+                value={productSearch}
+                onChange={(e) => {
+                  setProductSearch(e.target.value)
+                  setShowProductDropdown(true)
+                }}
+                onFocus={() => setShowProductDropdown(true)}
+                placeholder="Cari produk (nama atau SKU)..."
+                className="input"
               />
+              {showProductDropdown && filteredProducts.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {filteredProducts.map(product => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => addItem(product)}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
+                    >
+                      <div className="font-medium">{product.name}</div>
+                      <div className="text-sm text-gray-600">
+                        SKU: {product.sku} | Modal: Rp {product.costPrice?.toLocaleString('id-ID')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -458,18 +679,23 @@ function PurchaseModal({ purchase, suppliers, products, onClose, onSubmit }) {
                       <td className="px-4 py-3">
                         <input
                           type="number"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={item.qty}
                           onChange={(e) => updateItemQty(item.productId, e.target.value)}
-                          className="input-sm w-20 text-center"
+                          onFocus={(e) => e.target.select()}
+                          className="input w-24 text-center"
                           min="1"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={item.costPrice}
                           onChange={(e) => updateItemPrice(item.productId, e.target.value)}
-                          className="input-sm w-32 text-right"
+                          onFocus={(e) => e.target.select()}
+                          className="input w-32 text-right"
                           min="0"
                           step="100"
                         />

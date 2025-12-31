@@ -1,19 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Search, Edit, Trash2, Package, User, Calendar, RotateCcw, CheckCircle, XCircle } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useSalesOrderStore } from '../store/salesOrderStore'
 import { useAuthStore } from '../store/authStore'
+import { firebaseDB } from '../lib/firebase'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-// Simple store for returns
+// Returns store with Firebase sync
 const useReturnsStore = create(
   persist(
     (set, get) => ({
       returns: [],
-      addReturn: (returnItem) => {
+      setReturns: (returns) => set({ returns }),
+      
+      addReturn: async (returnItem) => {
         const now = new Date()
         const dateStr = now.toISOString().slice(2, 10).replace(/-/g, '')
         const timeStr = now.toTimeString().slice(0, 5).replace(':', '')
@@ -25,15 +28,25 @@ const useReturnsStore = create(
           id: returnId,
           createdAt: now.toISOString()
         }
-        set((state) => ({ returns: [...state.returns, newReturn] }))
+        
+        // Save to Firebase
+        await firebaseDB.set(`returns/${returnId}`, newReturn)
         return newReturn
       },
-      updateReturn: (id, data) => {
+      
+      updateReturn: async (id, data) => {
+        // Update in Firebase
+        await firebaseDB.update(`returns/${id}`, data)
+        // Also update local state immediately
         set((state) => ({
           returns: state.returns.map(r => r.id === id ? { ...r, ...data } : r)
         }))
       },
-      deleteReturn: (id) => {
+      
+      deleteReturn: async (id) => {
+        // Delete from Firebase
+        await firebaseDB.remove(`returns/${id}`)
+        // Also update local state immediately
         set((state) => ({
           returns: state.returns.filter(r => r.id !== id)
         }))
@@ -42,6 +55,9 @@ const useReturnsStore = create(
     { name: 'returns-storage' }
   )
 )
+
+// Export for use in useFirebaseSync
+export { useReturnsStore }
 
 export default function Returns() {
   const [showModal, setShowModal] = useState(false)

@@ -1,9 +1,13 @@
-// Supabase has been removed - using Firebase now
-// This file provides stub functions for backward compatibility
+import { createClient } from '@supabase/supabase-js'
 
-export const isSupabaseConfigured = () => false
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = null
+export const isSupabaseConfigured = () => !!(supabaseUrl && supabaseAnonKey)
+
+export const supabase = isSupabaseConfigured() 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
 
 export const deleteAllSupabaseData = async () => {
   return { success: true }

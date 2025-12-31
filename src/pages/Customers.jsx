@@ -195,18 +195,30 @@ export default function Customers() {
                     >
                       <Edit size={18} />
                     </button>
-                    {customer.type !== 'walk-in' && (
-                      <button
-                        onClick={() => {
-                          if (confirm('Hapus pelanggan ini?')) {
-                            deleteCustomer(customer.id)
+                    <button
+                      onClick={async () => {
+                        console.log('🗑️ Delete button clicked for:', customer.id, customer.name)
+                        if (confirm(`Hapus pelanggan "${customer.name}"?`)) {
+                          try {
+                            console.log('🗑️ Calling deleteCustomer...')
+                            const result = await deleteCustomer(customer.id)
+                            console.log('🗑️ Delete result:', result)
+                            if (result && result.success) {
+                              alert('✓ Pelanggan berhasil dihapus')
+                            } else {
+                              alert('Gagal menghapus pelanggan: ' + (result?.error || 'Unknown error'))
+                            }
+                          } catch (error) {
+                            console.error('🗑️ Delete error:', error)
+                            alert('Error: ' + error.message)
                           }
-                        }}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
+                        }
+                      }}
+                      className="text-red-600 hover:text-red-700"
+                      title="Hapus"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </td>
                 </tr>
               ))}

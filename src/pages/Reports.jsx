@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, Printer, Calendar, Search, Eye, X as XIcon, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, BarChart3, PieChart, Ban, Wallet, CreditCard } from 'lucide-react'
+import { Download, Printer, Calendar, Search, Eye, X as XIcon, TrendingUp, TrendingDown, DollarSign, ShoppingBag, Package, BarChart3, PieChart, Ban, Wallet, CreditCard, ArrowUpCircle, ArrowDownCircle, Building2 } from 'lucide-react'
 import { useTransactionStore } from '../store/transactionStore'
 import { useProductStore } from '../store/productStore'
 import { useMarketplaceStore } from '../store/marketplaceStore'
@@ -8,6 +8,8 @@ import { useSalesOrderStore } from '../store/salesOrderStore'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useExpenseStore } from '../store/expenseStore'
 import { useDebtStore } from '../store/debtStore'
+import { useAccountStore } from '../store/accountStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -37,8 +39,11 @@ export default function Reports() {
   const { purchases, suppliers } = usePurchaseStore()
   const { expenses } = useExpenseStore()
   const { debts } = useDebtStore()
+  const { storeInfo } = useSettingsStore()
+  const { accounts, cashFlows } = useAccountStore()
 
   const reportTypes = [
+    { id: 'cashflow', label: 'Arus Kas' },
     { id: 'transactions', label: 'Transaksi Kasir' },
     { id: 'sales', label: 'Laporan Penjualan' },
     { id: 'salesorders', label: 'Sales Order' },
@@ -112,7 +117,36 @@ export default function Reports() {
   }
 
   const handlePrint = () => {
+    // Create print header with store info
+    const printHeader = document.createElement('div')
+    printHeader.id = 'print-header'
+    printHeader.className = 'print-show'
+    printHeader.style.cssText = 'display: none; text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #333;'
+    
+    const logoHtml = storeInfo?.logo 
+      ? `<img src="${storeInfo.logo}" alt="Logo" style="max-height: 60px; max-width: 150px; margin: 0 auto 10px; display: block;" />`
+      : ''
+    
+    printHeader.innerHTML = `
+      ${logoHtml}
+      <h1 style="font-size: 18pt; font-weight: bold; margin: 0;">${storeInfo?.name || 'POS & Inventory System'}</h1>
+      ${storeInfo?.address ? `<p style="font-size: 10pt; color: #666; margin: 3px 0;">${storeInfo.address}</p>` : ''}
+      ${storeInfo?.phone ? `<p style="font-size: 10pt; color: #666; margin: 3px 0;">Telp: ${storeInfo.phone}</p>` : ''}
+      <h2 style="font-size: 14pt; margin: 10px 0 5px; border-top: 1px solid #ddd; padding-top: 10px;">${reportTypes.find(r => r.id === reportType)?.label || 'Laporan'}</h2>
+      <p style="font-size: 10pt; color: #666; margin: 5px 0;">
+        Periode: ${dateRange === 'today' ? 'Hari Ini' : dateRange === 'week' ? '7 Hari Terakhir' : dateRange === 'month' ? '30 Hari Terakhir' : dateRange === 'year' ? 'Tahun Ini' : customStartDate + ' s/d ' + customEndDate}
+      </p>
+      <p style="font-size: 9pt; color: #888;">Dicetak: ${new Date().toLocaleString('id-ID')}</p>
+    `
+    document.body.insertBefore(printHeader, document.body.firstChild)
+    
     window.print()
+    
+    // Remove print header after print
+    setTimeout(() => {
+      const header = document.getElementById('print-header')
+      if (header) header.remove()
+    }, 1000)
   }
 
   return (
@@ -178,6 +212,7 @@ export default function Reports() {
       </div>
 
       {/* Report Content */}
+      {reportType === 'cashflow' && <CashFlowReport accounts={accounts} cashFlows={cashFlows} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'transactions' && <TransactionsReport transactions={transactions} voidTransaction={voidTransaction} updateStock={updateStock} user={user} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'sales' && <SalesReport transactions={transactions} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
       {reportType === 'salesorders' && <SalesOrdersReport salesOrders={salesOrders} dateRange={dateRange} customStartDate={customStartDate} customEndDate={customEndDate} />}
@@ -1666,7 +1701,7 @@ function PurchasesReport({ purchases, suppliers, dateRange, customStartDate, cus
                 filteredPurchases.map((purchase) => (
                   <tr key={purchase.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono font-semibold text-blue-600">
-                      {purchase.id}
+                      {purchase.poNumber || purchase.purchaseNumber || '-'}
                     </td>
                     <td className="px-4 py-3 text-sm">
                       {new Date(purchase.createdAt || purchase.date).toLocaleDateString('id-ID')}
@@ -1853,6 +1888,145 @@ function DebtsReport({ debts, dateRange, customStartDate, customEndDate }) {
         <h3 className="text-lg font-bold mb-4 px-6 pt-6 flex items-center gap-2"><TrendingUp className="text-green-500" size={20} /> Daftar Piutang</h3>
         <div className="overflow-x-auto"><table className="w-full"><thead className="bg-gray-50 border-b"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deskripsi</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jumlah</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Sisa</th><th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th></tr></thead>
         <tbody className="divide-y">{receivables.length === 0 ? (<tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">Tidak ada data piutang</td></tr>) : receivables.map((d) => (<tr key={d.id} className="hover:bg-gray-50"><td className="px-6 py-4 font-medium">{d.personName}</td><td className="px-6 py-4">{d.description}</td><td className="px-6 py-4 text-right">Rp {(d.amount || 0).toLocaleString('id-ID')}</td><td className="px-6 py-4 text-right font-semibold text-green-600">Rp {((d.amount || 0) - (d.paidAmount || 0)).toLocaleString('id-ID')}</td><td className="px-6 py-4 text-center"><span className={`text-xs px-2 py-1 rounded ${getStatusBadge(d.status)}`}>{getStatusLabel(d.status)}</span></td></tr>))}</tbody></table></div>
+      </div>
+    </div>
+  )
+}
+
+// Cash Flow Report Component
+function CashFlowReport({ accounts, cashFlows, dateRange, customStartDate, customEndDate }) {
+  const filterByDate = (items) => {
+    if (!items) return []
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return items.filter(item => {
+      const itemDate = new Date(item.createdAt)
+      if (dateRange === 'custom' && customStartDate && customEndDate) {
+        const start = new Date(customStartDate)
+        const end = new Date(customEndDate)
+        end.setHours(23, 59, 59, 999)
+        return itemDate >= start && itemDate <= end
+      }
+      if (dateRange === 'today') {
+        const itemDay = new Date(itemDate)
+        itemDay.setHours(0, 0, 0, 0)
+        return itemDay.getTime() === today.getTime()
+      } else if (dateRange === 'week') {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return itemDate >= weekAgo
+      } else if (dateRange === 'month') {
+        const monthAgo = new Date(today)
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        return itemDate >= monthAgo
+      }
+      return true
+    })
+  }
+
+  const filteredCashFlows = filterByDate(cashFlows || [])
+  const totalIn = filteredCashFlows.filter(cf => cf.type === 'in').reduce((sum, cf) => sum + (cf.amount || 0), 0)
+  const totalOut = filteredCashFlows.filter(cf => cf.type === 'out').reduce((sum, cf) => sum + (cf.amount || 0), 0)
+  const totalBalance = (accounts || []).reduce((sum, acc) => sum + (acc.balance || 0), 0)
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="card border-l-4 border-green-500">
+          <div className="flex items-center gap-3">
+            <ArrowUpCircle className="text-green-500" size={32} />
+            <div>
+              <p className="text-sm text-gray-600">Uang Masuk</p>
+              <p className="text-2xl font-bold text-green-600">Rp {totalIn.toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card border-l-4 border-red-500">
+          <div className="flex items-center gap-3">
+            <ArrowDownCircle className="text-red-500" size={32} />
+            <div>
+              <p className="text-sm text-gray-600">Uang Keluar</p>
+              <p className="text-2xl font-bold text-red-600">Rp {totalOut.toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+        </div>
+        <div className="card border-l-4 border-blue-500">
+          <div className="flex items-center gap-3">
+            <DollarSign className="text-blue-500" size={32} />
+            <div>
+              <p className="text-sm text-gray-600">Selisih Periode</p>
+              <p className={`text-2xl font-bold ${totalIn - totalOut >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                Rp {(totalIn - totalOut).toLocaleString('id-ID')}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="card border-l-4 border-purple-500">
+          <div className="flex items-center gap-3">
+            <Wallet className="text-purple-500" size={32} />
+            <div>
+              <p className="text-sm text-gray-600">Total Saldo</p>
+              <p className="text-2xl font-bold text-purple-600">Rp {totalBalance.toLocaleString('id-ID')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Building2 className="text-blue-500" size={20} />
+          Saldo per Rekening
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {(accounts || []).length === 0 ? (
+            <p className="text-gray-500 col-span-3 text-center py-4">Belum ada rekening. Tambahkan di Pengaturan.</p>
+          ) : (
+            (accounts || []).map(account => (
+              <div key={account.id} className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  {account.type === 'cash' ? <Wallet className="text-green-600" size={20} /> : account.type === 'bank' ? <Building2 className="text-blue-600" size={20} /> : <CreditCard className="text-purple-600" size={20} />}
+                  <span className="font-medium">{account.name}</span>
+                </div>
+                <p className={`text-xl font-bold ${(account.balance || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  Rp {(account.balance || 0).toLocaleString('id-ID')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">{account.type === 'cash' ? 'Kas' : account.type === 'bank' ? 'Bank' : 'E-Wallet'}{account.accountNumber && ` • ${account.accountNumber}`}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        <h3 className="text-lg font-bold mb-4 px-6 pt-6">Riwayat Arus Kas</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tanggal</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipe</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kategori</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deskripsi</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {filteredCashFlows.length === 0 ? (
+                <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">Tidak ada data arus kas</td></tr>
+              ) : (
+                filteredCashFlows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map((cf) => (
+                  <tr key={cf.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 text-sm">{new Date(cf.createdAt).toLocaleDateString('id-ID')} <span className="text-gray-400">{new Date(cf.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span></td>
+                    <td className="px-6 py-4">{cf.type === 'in' ? <span className="flex items-center gap-1 text-green-600"><ArrowUpCircle size={16} /> Masuk</span> : <span className="flex items-center gap-1 text-red-600"><ArrowDownCircle size={16} /> Keluar</span>}</td>
+                    <td className="px-6 py-4 capitalize">{cf.category || '-'}</td>
+                    <td className="px-6 py-4">{cf.description || '-'}</td>
+                    <td className={`px-6 py-4 text-right font-semibold ${cf.type === 'in' ? 'text-green-600' : 'text-red-600'}`}>{cf.type === 'in' ? '+' : '-'} Rp {(cf.amount || 0).toLocaleString('id-ID')}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

@@ -23,10 +23,12 @@ import {
   AlertTriangle,
   RotateCcw,
   Wallet,
-  CreditCard
+  CreditCard,
+  ShoppingBag
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useProductStore } from '../store/productStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { isAndroid } from '../utils/platform'
 
 // Filter menu items based on platform
@@ -39,10 +41,12 @@ const allMenuItems = [
   { path: '/purchases', icon: Truck, label: 'Pembelian', permission: 'purchase' },
   { path: '/sales', icon: TrendingUp, label: 'Penjualan', permission: 'sales' },
   { path: '/returns', icon: RotateCcw, label: 'Barang Retur', permission: 'sales' },
+  { path: '/scan-resi', icon: ScanLine, label: 'Scan Resi', permission: 'all' },
   { path: '/customers', icon: Users, label: 'Pelanggan', permission: 'customers' },
   { path: '/expenses', icon: Wallet, label: 'Pengeluaran', permission: 'reports' },
   { path: '/debts', icon: CreditCard, label: 'Hutang Piutang', permission: 'reports' },
   { path: '/reports', icon: FileText, label: 'Laporan', permission: 'reports' },
+  { path: '/shopee', icon: ShoppingBag, label: 'Shopee Order', permission: 'sales' },
   { path: '/settings', icon: Settings, label: 'Pengaturan', permission: 'settings' },
 ]
 
@@ -78,6 +82,7 @@ export default function Layout({ children }) {
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const { products } = useProductStore()
+  const { storeInfo } = useSettingsStore()
 
   // Handle window resize
   useEffect(() => {
@@ -292,15 +297,19 @@ export default function Layout({ children }) {
           </div>
         </div>
 
-        {/* User Info */}
+        {/* Store Info */}
         <div className="p-4 border-b border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <User size={20} />
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center overflow-hidden">
+              {storeInfo?.logo ? (
+                <img src={storeInfo.logo} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <User size={20} />
+              )}
             </div>
             <div className="flex-1">
-              <p className="font-medium text-sm">{user?.name}</p>
-              <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
+              <p className="font-medium text-sm">{storeInfo?.name || user?.name}</p>
+              <p className="text-xs text-gray-400 capitalize">{storeInfo?.name ? user?.role : user?.role}</p>
             </div>
           </div>
         </div>
@@ -350,7 +359,7 @@ export default function Layout({ children }) {
       </main>
 
       {/* Bottom Navigation - Android Optimized */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom shadow-lg pb-3">
         <div className={`flex justify-around items-center ${isAndroid ? 'h-16' : 'h-14'}`}>
           {bottomNavItems.map((item) => {
             if (!hasAccess(item.permission || 'all')) return null

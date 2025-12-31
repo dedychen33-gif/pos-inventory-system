@@ -16,14 +16,18 @@ import {
   Check,
   Printer,
   Wifi,
-  WifiOff
+  WifiOff,
+  ScanLine
 } from 'lucide-react'
+import BarcodeScanner from '../components/BarcodeScanner'
+import { isAndroid } from '../utils/platform'
 import { useProductStore } from '../store/productStore'
 import { useCartStore } from '../store/cartStore'
 import { useCustomerStore } from '../store/customerStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useAuthStore } from '../store/authStore'
+import { useAccountStore } from '../store/accountStore'
 import { firebaseDB } from '../lib/firebase'
 
 function POSContent() {
@@ -36,6 +40,7 @@ function POSContent() {
   const [remoteScanEnabled, setRemoteScanEnabled] = useState(false)
   const [lastRemoteScan, setLastRemoteScan] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   
   const searchInputRef = useRef(null)
   
@@ -65,6 +70,7 @@ function POSContent() {
   const { addTransaction } = useTransactionStore()
   const { storeInfo } = useSettingsStore()
   const { user } = useAuthStore()
+  const { accounts, addCashFlow } = useAccountStore()
 
   // Listen for remote barcode scans from Android via Firebase
   useEffect(() => {
@@ -190,6 +196,20 @@ function POSContent() {
       // Save transaction
       const result = await addTransaction(transaction)
       
+      // Add cash flow (money in) - use default account or first available
+      const defaultAccount = accounts.find(a => a.isDefault) || accounts[0]
+      if (defaultAccount) {
+        await addCashFlow({
+          type: 'in',
+          amount: total,
+          accountId: defaultAccount.id,
+          category: 'pos_sale',
+          description: `Penjualan Kasir: ${result?.transaction?.id || 'POS'}`,
+          referenceId: result?.transaction?.id,
+          referenceType: 'pos_transaction'
+        })
+      }
+      
       // addTransaction returns { success, transaction } or { success, error }
       // Use the original transaction object which has all the data
       setLastTransaction(transaction)
@@ -279,6 +299,17 @@ function POSContent() {
                 autoFocus
               />
             </div>
+            {/* Scan Barcode Button - Android only */}
+            {isAndroid && (
+              <button
+                onClick={() => setShowBarcodeScanner(true)}
+                className="flex items-center gap-2 px-4 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 active:scale-95"
+                title="Scan Barcode"
+              >
+                <ScanLine size={20} />
+                <span className="hidden lg:inline">Scan</span>
+              </button>
+            )}
             {/* Remote Scan Toggle */}
             <button
               onClick={() => setRemoteScanEnabled(!remoteScanEnabled)}
@@ -459,11 +490,11 @@ function POSContent() {
           <div className="grid grid-cols-3 gap-2">
             <button onClick={handleHold} className="btn btn-warning">
               <Pause size={18} />
-              Hold
+              Tunda
             </button>
             <button onClick={handleVoid} className="btn btn-danger">
               <X size={18} />
-              Void
+              Batal
             </button>
             <button className="btn btn-secondary">
               <Percent size={18} />
@@ -683,6 +714,31 @@ function POSContent() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {/* Barcode Scanner Modal */}
+      {showBarcodeScanner && (
+        <BarcodeScanner
+          onScan={(barcode) => {
+            setShowBarcodeScanner(false)
+            // Find product by barcode
+            const product = products.find(p => 
+              p.barcode === barcode || 
+              p.code === barcode || 
+              p.sku === barcode
+            )
+            if (product) {
+              if (product.stock > 0) {
+                addToCart(product)
+              } else {
+                alert(`Stok ${product.name} habis!`)
+              }
+            } else {
+              alert(`Produk dengan barcode ${barcode} tidak ditemukan`)
+            }
+          }}
+          onClose={() => setShowBarcodeScanner(false)}
+        />
       )}
     </div>
   )

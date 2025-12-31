@@ -107,20 +107,8 @@ export default function RemoteScanner() {
         return
       }
 
-      hideAppContent()
-      setIsScanning(true)
-
-      await BarcodeScanner.addListener('barcodeScanned', async (result) => {
-        if (result.barcode?.rawValue) {
-          // Vibrate on scan
-          if (navigator.vibrate) navigator.vibrate(100)
-          
-          // Send to Firebase
-          await sendScanToFirebase(result.barcode.rawValue)
-        }
-      })
-
-      await BarcodeScanner.startScan({
+      // Use capture scan (single photo capture)
+      const { barcodes } = await BarcodeScanner.scan({
         formats: [
           BarcodeFormat.Ean13,
           BarcodeFormat.Ean8,
@@ -129,15 +117,24 @@ export default function RemoteScanner() {
           BarcodeFormat.QrCode,
           BarcodeFormat.UpcA,
           BarcodeFormat.UpcE
-        ],
-        lensFacing: 'back'
+        ]
       })
+
+      if (barcodes && barcodes.length > 0) {
+        const barcode = barcodes[0].rawValue
+        
+        // Vibrate on scan
+        if (navigator.vibrate) navigator.vibrate(100)
+        
+        // Send to Firebase
+        await sendScanToFirebase(barcode)
+      }
 
     } catch (err) {
       console.error('Scan error:', err)
-      setError('Gagal memulai scanner: ' + err.message)
-      showAppContent()
-      setIsScanning(false)
+      if (err.message !== 'scan canceled') {
+        setError('Gagal scan: ' + err.message)
+      }
     }
   }
 
@@ -162,87 +159,6 @@ export default function RemoteScanner() {
     } catch (err) {
       console.error('Torch error:', err)
     }
-  }
-
-  // Scanning view
-  if (isScanning) {
-    return (
-      <div className="fixed inset-0 z-[9999]" style={{ background: 'transparent' }}>
-        {/* Scanner frame overlay */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div 
-            className="w-72 h-72 border-4 border-white rounded-2xl relative"
-            style={{ boxShadow: '0 0 0 4000px rgba(0, 0, 0, 0.5)' }}
-          >
-            <div className="absolute -top-1 -left-1 w-10 h-10 border-t-4 border-l-4 border-green-500 rounded-tl-xl"></div>
-            <div className="absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 border-green-500 rounded-tr-xl"></div>
-            <div className="absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 border-green-500 rounded-bl-xl"></div>
-            <div className="absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 border-green-500 rounded-br-xl"></div>
-            <div className="absolute left-4 right-4 h-1 bg-green-500 rounded scanning-line"></div>
-          </div>
-        </div>
-
-        {/* Header info */}
-        <div className="absolute top-4 left-0 right-0 text-center pointer-events-none safe-area-top">
-          <div className="inline-flex items-center gap-2 bg-black/60 backdrop-blur px-4 py-2 rounded-full">
-            <Wifi className="text-green-400" size={18} />
-            <span className="text-white font-medium">Mode Remote Scanner</span>
-          </div>
-          <p className="text-gray-200 text-sm mt-2">Scan untuk kirim ke Kasir Web</p>
-        </div>
-
-        {/* Last scan info */}
-        {lastScan && (
-          <div className="absolute top-24 left-4 right-4 pointer-events-none">
-            <div className="bg-green-500/90 backdrop-blur rounded-xl p-3 flex items-center gap-3">
-              <CheckCircle className="text-white flex-shrink-0" size={24} />
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-medium truncate">
-                  {lastScan.product || lastScan.barcode}
-                </p>
-                <p className="text-green-100 text-sm">
-                  Terkirim ke Web • {lastScan.time}
-                </p>
-              </div>
-              <div className="bg-white/20 px-3 py-1 rounded-full">
-                <span className="text-white font-bold">{scanCount}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Controls */}
-        <div className="absolute bottom-12 left-0 right-0 flex justify-center gap-12">
-          <button
-            onClick={toggleTorch}
-            className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border-2 border-white/40"
-          >
-            {torchEnabled ? (
-              <FlashlightOff size={28} className="text-yellow-400" />
-            ) : (
-              <Flashlight size={28} className="text-white" />
-            )}
-          </button>
-
-          <button
-            onClick={stopScan}
-            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center border-2 border-white/40"
-          >
-            <X size={30} className="text-white" />
-          </button>
-        </div>
-
-        <style>{`
-          .scanning-line {
-            animation: scan 2s ease-in-out infinite;
-          }
-          @keyframes scan {
-            0%, 100% { top: 10%; }
-            50% { top: 85%; }
-          }
-        `}</style>
-      </div>
-    )
   }
 
   // Main view
@@ -287,11 +203,11 @@ export default function RemoteScanner() {
             </li>
             <li className="flex gap-2">
               <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">2</span>
-              <span>Tekan tombol <strong>"Mulai Scan"</strong> di bawah</span>
+              <span>Tekan tombol <strong>"Scan Barcode"</strong> di bawah</span>
             </li>
             <li className="flex gap-2">
               <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">3</span>
-              <span>Arahkan kamera ke barcode produk</span>
+              <span>Arahkan kamera ke barcode dan <strong>capture</strong></span>
             </li>
             <li className="flex gap-2">
               <span className="bg-green-500 text-white w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">4</span>
@@ -346,7 +262,7 @@ export default function RemoteScanner() {
               d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" 
             />
           </svg>
-          {isConnected ? 'Mulai Scan' : 'Tidak Terhubung'}
+          {isConnected ? 'Scan Barcode' : 'Tidak Terhubung'}
         </button>
       </div>
     </div>

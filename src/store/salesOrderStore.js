@@ -2,6 +2,21 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { firebaseDB } from '../lib/firebase'
 
+// Helper to remove undefined values (Firebase doesn't accept undefined)
+const cleanUndefined = (obj) => {
+  if (Array.isArray(obj)) {
+    return obj.map(cleanUndefined)
+  }
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, v]) => v !== undefined)
+        .map(([k, v]) => [k, cleanUndefined(v)])
+    )
+  }
+  return obj
+}
+
 export const useSalesOrderStore = create(
   persist(
     (set, get) => ({
@@ -25,17 +40,21 @@ export const useSalesOrderStore = create(
           createdAt: now.toISOString()
         }
         
-        // Save to Firebase
+        // Save to Firebase (clean undefined values first)
         try {
-          await firebaseDB.set(`salesOrders/${newOrder.id}`, newOrder)
+          const cleanedOrder = cleanUndefined(newOrder)
+          await firebaseDB.set(`salesOrders/${cleanedOrder.id}`, cleanedOrder)
           console.log('✅ Sales order added to Firebase:', newOrder.orderNumber)
+          
+          // Add to local state only if not already exists (avoid duplicates)
+          set((state) => {
+            const exists = state.salesOrders.some(o => o.id === newOrder.id)
+            if (exists) return state
+            return { salesOrders: [...state.salesOrders, newOrder] }
+          })
         } catch (error) {
           console.error('❌ Error adding sales order to Firebase:', error.message)
         }
-        
-        set((state) => ({
-          salesOrders: [...state.salesOrders, newOrder]
-        }))
         
         return newOrder
       },
@@ -48,7 +67,8 @@ export const useSalesOrderStore = create(
         }))
 
         try {
-          await firebaseDB.update(`salesOrders/${id}`, updatedOrder)
+          const cleanedUpdate = cleanUndefined(updatedOrder)
+          await firebaseDB.update(`salesOrders/${id}`, cleanedUpdate)
           console.log('✅ Sales order updated in Firebase')
         } catch (error) {
           console.error('❌ Error updating sales order:', error.message)
@@ -83,7 +103,10 @@ export const useSalesOrderStore = create(
       }
     }),
     {
-      name: 'sales-order-storage'
+      name: 'sales-order-storage',
+      partialize: (state) => ({
+        // Don't persist salesOrders - comes from Firebase realtime sync
+      })
     }
   )
 )

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import shopeeWebhookService from '../services/shopeeWebhookService';
+import { useSettingsStore } from '../store/settingsStore';
 
 export default function ShopeeWebhookMonitor() {
   const [stats, setStats] = useState(null);
@@ -7,6 +8,9 @@ export default function ShopeeWebhookMonitor() {
   const [syncQueue, setSyncQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('stats');
+  const [syncing, setSyncing] = useState(false);
+  const [authUrl, setAuthUrl] = useState('');
+  const { shopeeCredentials } = useSettingsStore();
 
   useEffect(() => {
     loadData();
@@ -55,6 +59,78 @@ export default function ShopeeWebhookMonitor() {
     }
   };
 
+  const handleConnectShop = async () => {
+    try {
+      setSyncing(true);
+      const response = await fetch('/api/shopee/auth-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partner_id: shopeeCredentials?.partnerId,
+          partner_key: shopeeCredentials?.partnerKey
+        })
+      });
+      const data = await response.json();
+      if (data.success && data.url) {
+        window.open(data.url, '_blank');
+      } else {
+        alert('Gagal mendapatkan URL auth: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleSyncOrders = async () => {
+    try {
+      setSyncing(true);
+      const accessToken = localStorage.getItem('shopee_access_token');
+      const shopId = localStorage.getItem('shopee_shop_id') || shopeeCredentials?.shopId;
+      
+      if (!accessToken) {
+        alert('Belum terhubung ke Shopee. Klik "Hubungkan Toko" terlebih dahulu.');
+        return;
+      }
+
+      // Time range: 30 days
+      const now = Math.floor(Date.now() / 1000);
+      const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
+      
+      const response = await fetch(`/api/shopee/orders?partner_id=${shopeeCredentials?.partnerId}&shop_id=${shopId}&access_token=${accessToken}&fetch_all=true&fetch_all_statuses=true&time_from=${thirtyDaysAgo}&time_to=${now}`, {
+        method: 'GET',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-partner-key': shopeeCredentials?.partnerKey
+        }
+      });
+      
+      const data = await response.json();
+      console.log('Shopee orders response:', data);
+      console.log('Response data:', data.data);
+      console.log('Response order_list:', data.data?.response?.order_list);
+      console.log('Status summary:', data.data?.response?.status_summary);
+      
+      if (data.success) {
+        const orders = data.data?.response?.order_list || data.orders || [];
+        const statusSummary = data.data?.response?.status_summary || {};
+        const summaryText = Object.entries(statusSummary).map(([k,v]) => `${k}: ${v}`).join(', ');
+        alert(`Sync selesai!\n\nTotal: ${orders.length} pesanan\nPer status: ${summaryText || 'N/A'}`);
+        await loadData();
+      } else {
+        const errorMsg = data.data?.error || data.data?.message || data.error || data.message;
+        alert('Gagal sync: ' + JSON.stringify(errorMsg || data));
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const isConnected = !!localStorage.getItem('shopee_access_token');
+
   const getStatusBadge = (status) => {
     const colors = {
       success: 'bg-green-100 text-green-800',
@@ -90,15 +166,34 @@ export default function ShopeeWebhookMonitor() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold">Shopee Webhook Monitor</h2>
-        <button
-          onClick={loadData}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          {!isConnected ? (
+            <button
+              onClick={handleConnectShop}
+              className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+              disabled={syncing}
+            >
+              {syncing ? 'Loading...' : '🔗 Hubungkan Toko'}
+            </button>
+          ) : (
+            <button
+              onClick={handleSyncOrders}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              disabled={syncing}
+            >
+              {syncing ? 'Syncing...' : '📥 Sync Pesanan'}
+            </button>
+          )}
+          <button
+            onClick={loadData}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            disabled={loading}
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {stats && (

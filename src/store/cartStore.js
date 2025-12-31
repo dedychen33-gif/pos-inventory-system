@@ -12,10 +12,12 @@ export const useCartStore = create(
       
       addToCart: (product, quantity = 1) => {
         const existingItem = get().cartItems.find((item) => item.id === product.id)
+        const productStock = parseInt(product.stock) || 0
         
         if (existingItem) {
-          if (existingItem.quantity + quantity > existingItem.stock) {
-            alert('Stok tidak mencukupi!')
+          const existingStock = parseInt(existingItem.stock) || 0
+          if (existingItem.quantity + quantity > existingStock) {
+            alert(`Stok ${product.name} tidak mencukupi! (Tersedia: ${existingStock}, Diminta: ${existingItem.quantity + quantity})`)
             return
           }
           set((state) => ({
@@ -26,8 +28,12 @@ export const useCartStore = create(
             )
           }))
         } else {
-          if (quantity > product.stock) {
-            alert('Stok tidak mencukupi!')
+          if (productStock <= 0) {
+            alert(`Stok ${product.name} habis!`)
+            return
+          }
+          if (quantity > productStock) {
+            alert(`Stok ${product.name} tidak mencukupi! (Tersedia: ${productStock}, Diminta: ${quantity})`)
             return
           }
           set((state) => ({
@@ -49,9 +55,12 @@ export const useCartStore = create(
         }
         
         const item = get().cartItems.find(i => i.id === productId)
-        if (item && quantity > item.stock) {
-          alert('Stok tidak mencukupi!')
-          return
+        if (item) {
+          const itemStock = parseInt(item.stock) || 0
+          if (quantity > itemStock) {
+            alert(`Stok ${item.name} tidak mencukupi! (Tersedia: ${itemStock})`)
+            return
+          }
         }
 
         set((state) => ({

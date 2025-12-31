@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Store, Upload, Image as ImageIcon, Database, Download, Trash2, Info, MessageCircle, User, Plus, Edit2, UserX, UserCheck, Shield, Key, X } from 'lucide-react'
+import { Store, Upload, Image as ImageIcon, Database, Download, Trash2, Info, MessageCircle, User, Plus, Edit2, UserX, UserCheck, Shield, Key, X, Tag, Ruler, Check, ShoppingBag } from 'lucide-react'
 import { useAuthStore, PERMISSION_LABELS } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useProductStore } from '../store/productStore'
@@ -8,6 +8,7 @@ import { useTransactionStore } from '../store/transactionStore'
 import { usePurchaseStore } from '../store/purchaseStore'
 import { useCartStore } from '../store/cartStore'
 import { useSalesOrderStore } from '../store/salesOrderStore'
+import { firebaseDB } from '../lib/firebase'
 
 export default function Settings() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -16,8 +17,8 @@ export default function Settings() {
   const [selectedUser, setSelectedUser] = useState(null)
   
   const { users = [], user: currentUser, addUser, updateUser, deleteUser, toggleUserActive, isAdmin } = useAuthStore() || {}
-  const { storeInfo = {}, updateStoreInfo, whatsappNumber, whatsappMessage, updateWhatsApp } = useSettingsStore() || {}
-  const { products = [] } = useProductStore() || {}
+  const { storeInfo = {}, updateStoreInfo, whatsappNumber, whatsappMessage, updateWhatsApp, shopeeCredentials = {}, updateShopeeCredentials } = useSettingsStore() || {}
+  const { products = [], categories = [], units = [], setCategories, setUnits } = useProductStore() || {}
   const { customers = [] } = useCustomerStore() || {}
   const { transactions = [] } = useTransactionStore() || {}
   const { purchases = [], suppliers = [] } = usePurchaseStore() || {}
@@ -29,6 +30,21 @@ export default function Settings() {
     number: whatsappNumber || '', 
     message: whatsappMessage || 'Halo, saya ingin bertanya tentang produk di toko Anda.' 
   })
+  const [shopeeFormData, setShopeeFormData] = useState({
+    partnerId: shopeeCredentials?.partnerId || '',
+    partnerKey: shopeeCredentials?.partnerKey || '',
+    shopId: shopeeCredentials?.shopId || '',
+    pushPartnerKey: shopeeCredentials?.pushPartnerKey || ''
+  })
+  
+  // Category & Unit management states
+  const [newCategory, setNewCategory] = useState('')
+  const [editingCategory, setEditingCategory] = useState(null)
+  const [editCategoryValue, setEditCategoryValue] = useState('')
+  const [newUnit, setNewUnit] = useState('')
+  const [editingUnit, setEditingUnit] = useState(null)
+  const [editUnitValue, setEditUnitValue] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   const handleBackupDatabase = () => {
     const returnsData = JSON.parse(localStorage.getItem('returns-storage') || '{}')
@@ -222,6 +238,201 @@ export default function Settings() {
     alert('Pengaturan WhatsApp berhasil disimpan!')
   }
 
+  const handleSaveShopee = async () => {
+    await updateShopeeCredentials(shopeeFormData)
+    alert('Kredensial Shopee berhasil disimpan!')
+  }
+
+  // Category Management Functions
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return
+    if (categories.includes(newCategory.trim())) {
+      alert('Kategori sudah ada!')
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      const newCategories = [...categories, newCategory.trim()]
+      const result = await firebaseDB.set('categories', newCategories)
+      if (result.success) {
+        setCategories(newCategories)
+        setNewCategory('')
+      } else {
+        alert('Gagal menambah kategori')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleEditCategory = (cat) => {
+    setEditingCategory(cat)
+    setEditCategoryValue(cat)
+  }
+
+  const handleSaveEditCategory = async () => {
+    if (!editCategoryValue.trim() || editCategoryValue.trim() === editingCategory) {
+      setEditingCategory(null)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const oldCategory = editingCategory
+      const newCategoryName = editCategoryValue.trim()
+      
+      // Update category list
+      const newCategories = categories.map(c => c === oldCategory ? newCategoryName : c)
+      const result = await firebaseDB.set('categories', newCategories)
+      
+      if (result.success) {
+        // Update all products with old category
+        const productsToUpdate = products.filter(p => p.category === oldCategory)
+        const updatePromises = productsToUpdate.map(product => 
+          firebaseDB.update(`products/${product.id}`, { 
+            category: newCategoryName,
+            updatedAt: new Date().toISOString()
+          })
+        )
+        await Promise.all(updatePromises)
+        
+        setCategories(newCategories)
+        setEditingCategory(null)
+        setEditCategoryValue('')
+        console.log(`✅ Updated ${productsToUpdate.length} products to new category "${newCategoryName}"`)
+      } else {
+        alert('Gagal mengubah kategori')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteCategory = async (cat) => {
+    const productsWithCategory = products.filter(p => p.category === cat)
+    if (productsWithCategory.length > 0) {
+      alert(`Tidak bisa hapus! Ada ${productsWithCategory.length} produk dengan kategori ini.`)
+      return
+    }
+    
+    if (!confirm(`Hapus kategori "${cat}"?`)) return
+    
+    setIsSaving(true)
+    try {
+      const newCategories = categories.filter(c => c !== cat)
+      const result = await firebaseDB.set('categories', newCategories)
+      if (result.success) {
+        setCategories(newCategories)
+      } else {
+        alert('Gagal menghapus kategori')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Unit Management Functions
+  const handleAddUnit = async () => {
+    if (!newUnit.trim()) return
+    if (units.includes(newUnit.trim())) {
+      alert('Satuan sudah ada!')
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      const newUnits = [...units, newUnit.trim()]
+      const result = await firebaseDB.set('units', newUnits)
+      if (result.success) {
+        setUnits(newUnits)
+        setNewUnit('')
+      } else {
+        alert('Gagal menambah satuan')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleEditUnit = (unit) => {
+    setEditingUnit(unit)
+    setEditUnitValue(unit)
+  }
+
+  const handleSaveEditUnit = async () => {
+    if (!editUnitValue.trim() || editUnitValue.trim() === editingUnit) {
+      setEditingUnit(null)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const oldUnit = editingUnit
+      const newUnitName = editUnitValue.trim()
+      
+      // Update unit list
+      const newUnits = units.map(u => u === oldUnit ? newUnitName : u)
+      const result = await firebaseDB.set('units', newUnits)
+      
+      if (result.success) {
+        // Update all products with old unit
+        const productsToUpdate = products.filter(p => p.unit === oldUnit)
+        const updatePromises = productsToUpdate.map(product => 
+          firebaseDB.update(`products/${product.id}`, { 
+            unit: newUnitName,
+            updatedAt: new Date().toISOString()
+          })
+        )
+        await Promise.all(updatePromises)
+        
+        setUnits(newUnits)
+        setEditingUnit(null)
+        setEditUnitValue('')
+        console.log(`✅ Updated ${productsToUpdate.length} products to new unit "${newUnitName}"`)
+      } else {
+        alert('Gagal mengubah satuan')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteUnit = async (unit) => {
+    const productsWithUnit = products.filter(p => p.unit === unit)
+    if (productsWithUnit.length > 0) {
+      alert(`Tidak bisa hapus! Ada ${productsWithUnit.length} produk dengan satuan ini.`)
+      return
+    }
+    
+    if (!confirm(`Hapus satuan "${unit}"?`)) return
+    
+    setIsSaving(true)
+    try {
+      const newUnits = units.filter(u => u !== unit)
+      const result = await firebaseDB.set('units', newUnits)
+      if (result.success) {
+        setUnits(newUnits)
+      } else {
+        alert('Gagal menghapus satuan')
+      }
+    } catch (error) {
+      alert('Error: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleAddUser = () => {
     setUserModalMode('add')
     setSelectedUser(null)
@@ -367,6 +578,249 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Shopee Integration */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <ShoppingBag className="text-orange-600" size={24} />
+            <h3 className="text-lg font-bold">Integrasi Shopee</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm text-orange-800">
+                <Info size={14} className="inline mr-1" />
+                Masukkan kredensial dari Shopee Open Platform untuk sinkronisasi otomatis.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Partner ID</label>
+              <input 
+                type="text"
+                placeholder="Contoh: 2014001"
+                value={shopeeFormData.partnerId}
+                onChange={(e) => setShopeeFormData({ ...shopeeFormData, partnerId: e.target.value })}
+                className="input" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Partner Key (API Key)</label>
+              <input 
+                type="password"
+                placeholder="shpk..."
+                value={shopeeFormData.partnerKey}
+                onChange={(e) => setShopeeFormData({ ...shopeeFormData, partnerKey: e.target.value })}
+                className="input" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Shop ID</label>
+              <input 
+                type="text"
+                placeholder="Contoh: 669903315"
+                value={shopeeFormData.shopId}
+                onChange={(e) => setShopeeFormData({ ...shopeeFormData, shopId: e.target.value })}
+                className="input" 
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Push Partner Key (Webhook Key)</label>
+              <input 
+                type="password"
+                placeholder="Untuk verifikasi webhook..."
+                value={shopeeFormData.pushPartnerKey}
+                onChange={(e) => setShopeeFormData({ ...shopeeFormData, pushPartnerKey: e.target.value })}
+                className="input" 
+              />
+            </div>
+            <button onClick={handleSaveShopee} className="btn btn-primary">Simpan Kredensial Shopee</button>
+          </div>
+        </div>
+
+        {/* Kelola Kategori */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Tag className="text-orange-500" size={24} />
+            <h3 className="text-lg font-bold">Kelola Kategori</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm text-orange-800">
+                <Info size={14} className="inline mr-1" />
+                Kategori yang ditambahkan di sini akan tersedia di semua produk (Web & Android).
+              </p>
+            </div>
+            {/* Add New Category */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                placeholder="Nama kategori baru..."
+                className="input flex-1"
+                disabled={isSaving}
+              />
+              <button 
+                onClick={handleAddCategory} 
+                disabled={isSaving || !newCategory.trim()}
+                className="btn btn-primary"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            {/* Category List */}
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {categories.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">Belum ada kategori</p>
+              ) : (
+                categories.map((cat) => (
+                  <div key={cat} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100">
+                    {editingCategory === cat ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editCategoryValue}
+                          onChange={(e) => setEditCategoryValue(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSaveEditCategory()}
+                          className="input flex-1 py-1"
+                          autoFocus
+                          disabled={isSaving}
+                        />
+                        <button
+                          onClick={handleSaveEditCategory}
+                          disabled={isSaving}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                        >
+                          {isSaving ? <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" /> : <Check size={16} />}
+                        </button>
+                        <button
+                          onClick={() => setEditingCategory(null)}
+                          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-medium text-sm">{cat}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEditCategory(cat)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(cat)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            title="Hapus"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-500">Total: {categories.length} kategori</p>
+          </div>
+        </div>
+
+        {/* Kelola Satuan */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Ruler className="text-teal-500" size={24} />
+            <h3 className="text-lg font-bold">Kelola Satuan</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-3">
+              <p className="text-sm text-teal-800">
+                <Info size={14} className="inline mr-1" />
+                Satuan yang ditambahkan di sini akan tersedia di semua produk (Web & Android).
+              </p>
+            </div>
+            {/* Add New Unit */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newUnit}
+                onChange={(e) => setNewUnit(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddUnit()}
+                placeholder="Nama satuan baru..."
+                className="input flex-1"
+                disabled={isSaving}
+              />
+              <button 
+                onClick={handleAddUnit} 
+                disabled={isSaving || !newUnit.trim()}
+                className="btn btn-primary"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            {/* Unit List */}
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {units.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">Belum ada satuan</p>
+              ) : (
+                units.map((unit) => (
+                  <div key={unit} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100">
+                    {editingUnit === unit ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editUnitValue}
+                          onChange={(e) => setEditUnitValue(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSaveEditUnit()}
+                          className="input flex-1 py-1"
+                          autoFocus
+                          disabled={isSaving}
+                        />
+                        <button
+                          onClick={handleSaveEditUnit}
+                          disabled={isSaving}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                        >
+                          {isSaving ? <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /> : <Check size={16} />}
+                        </button>
+                        <button
+                          onClick={() => setEditingUnit(null)}
+                          className="p-1.5 text-gray-600 hover:bg-gray-100 rounded"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-medium text-sm">{unit}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEditUnit(unit)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUnit(unit)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            title="Hapus"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-gray-500">Total: {units.length} satuan</p>
+          </div>
+        </div>
+
         {/* Database */}
         <div className="card">
           <div className="flex items-center gap-3 mb-4">
@@ -487,6 +941,52 @@ export default function Settings() {
           </div>
         </div>
       )}
+
+      {/* About App Section */}
+      <div className="card bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200">
+        <div className="flex items-center gap-3 mb-4">
+          <Info className="text-indigo-600" size={24} />
+          <h3 className="text-lg font-bold text-indigo-900">Tentang Aplikasi</h3>
+        </div>
+        <div className="space-y-4">
+          <div className="bg-white rounded-lg p-4 border border-indigo-100">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-indigo-600 rounded-xl flex items-center justify-center">
+                <Store className="text-white" size={32} />
+              </div>
+              <div>
+                <h4 className="text-xl font-bold text-gray-900">POS Pro</h4>
+                <p className="text-sm text-gray-600">Point of Sale & Inventory System</p>
+                <p className="text-xs text-indigo-600 font-medium mt-1">Versi 1.0.0</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="text-sm text-gray-700 space-y-2">
+            <p>
+              <strong>Deskripsi:</strong> Aplikasi POS Pro adalah sistem manajemen toko lengkap yang mencakup 
+              Point of Sale (Kasir), Manajemen Produk & Varian, Stok Multi-Gudang, Pembelian, Penjualan, 
+              Pelanggan & Loyalty Program, dan Laporan Analytics.
+            </p>
+          </div>
+
+          <div className="border-t border-indigo-200 pt-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                <User className="text-indigo-600" size={20} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Dikembangkan oleh</p>
+                <p className="text-lg font-bold text-indigo-600">dedychen</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500 text-center pt-2 border-t border-indigo-100">
+            © 2025-2026 POS Sistem. All rights reserved.
+          </div>
+        </div>
+      </div>
 
       {/* User Modal */}
       {showUserModal && (

@@ -21,14 +21,12 @@ export const usePurchaseStore = create(
         
         console.log('🚚 Adding supplier to Firebase:', newSupplier)
         
-        // Save to Firebase
+        // Save to Firebase - local state will be updated by Firebase listener
         const result = await firebaseDB.set(`suppliers/${newSupplier.id}`, newSupplier)
         console.log('🚚 Firebase result:', result)
         
-        // Also update local state immediately for better UX
-        set((state) => ({
-          suppliers: [...state.suppliers, newSupplier]
-        }))
+        // Return the new supplier for immediate UI feedback if needed
+        return newSupplier
       },
 
       updateSupplier: async (id, updatedSupplier) => {
@@ -40,7 +38,10 @@ export const usePurchaseStore = create(
       deleteSupplier: async (id) => {
         // Delete from Firebase
         await firebaseDB.remove(`suppliers/${id}`)
-        // Local state will be updated by Firebase listener
+        // Also update local state immediately for better UX
+        set((state) => ({
+          suppliers: state.suppliers.filter(s => s.id !== id)
+        }))
       },
 
       addPurchase: async (purchase) => {
@@ -48,27 +49,33 @@ export const usePurchaseStore = create(
         const newPurchase = { 
           ...purchase, 
           id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-          purchaseNumber: `PO${String(purchaseCount + 1).padStart(3, '0')}`,
+          purchaseNumber: purchase.poNumber || `PO${String(purchaseCount + 1).padStart(3, '0')}`,
           createdAt: new Date().toISOString()
         }
         
         console.log('📦 Adding purchase to Firebase:', newPurchase)
         
-        // Save to Firebase
+        // Save to Firebase - local state will be updated by Firebase listener
         await firebaseDB.set(`purchases/${newPurchase.id}`, newPurchase)
-        // Local state will be updated by Firebase listener
+        return newPurchase
       },
 
       updatePurchase: async (id, updatedPurchase) => {
         // Update Firebase
         await firebaseDB.update(`purchases/${id}`, updatedPurchase)
-        // Local state will be updated by Firebase listener
+        // Also update local state immediately
+        set((state) => ({
+          purchases: state.purchases.map(p => p.id === id ? { ...p, ...updatedPurchase } : p)
+        }))
       },
 
       deletePurchase: async (id) => {
         // Delete from Firebase
         await firebaseDB.remove(`purchases/${id}`)
-        // Local state will be updated by Firebase listener
+        // Also update local state immediately
+        set((state) => ({
+          purchases: state.purchases.filter(p => p.id !== id)
+        }))
       }
     }),
     {

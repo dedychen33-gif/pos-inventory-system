@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle, ScanLine } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle, ScanLine, Wallet, PenTool, X, Camera } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
@@ -7,7 +7,151 @@ import { useSettingsStore } from '../store/settingsStore'
 import { useSalesOrderStore } from '../store/salesOrderStore'
 import { useTransactionStore } from '../store/transactionStore'
 import { useAuthStore } from '../store/authStore'
+import { useAccountStore } from '../store/accountStore'
 import { isAndroid } from '../utils/platform'
+
+// Signature Pad Component
+function SignaturePad({ onSave, onClose, initialSignature }) {
+  const canvasRef = useRef(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [hasSignature, setHasSignature] = useState(false)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#000'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    if (initialSignature) {
+      const img = new Image()
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0)
+        setHasSignature(true)
+      }
+      img.src = initialSignature
+    }
+  }, [initialSignature])
+
+  const getCoordinates = (e) => {
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    
+    if (e.touches) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      }
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    }
+  }
+
+  const startDrawing = (e) => {
+    e.preventDefault()
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const coords = getCoordinates(e)
+    ctx.beginPath()
+    ctx.moveTo(coords.x, coords.y)
+    setIsDrawing(true)
+    setHasSignature(true)
+  }
+
+  const draw = (e) => {
+    if (!isDrawing) return
+    e.preventDefault()
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const coords = getCoordinates(e)
+    ctx.lineTo(coords.x, coords.y)
+    ctx.stroke()
+  }
+
+  const stopDrawing = () => {
+    setIsDrawing(false)
+  }
+
+  const clearSignature = () => {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    setHasSignature(false)
+  }
+
+  const saveSignature = () => {
+    if (!hasSignature) {
+      alert('Silakan tanda tangan terlebih dahulu')
+      return
+    }
+    const canvas = canvasRef.current
+    const dataUrl = canvas.toDataURL('image/png')
+    onSave(dataUrl)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+      <div className="bg-white rounded-xl max-w-lg w-full p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <PenTool size={20} />
+            Tanda Tangan Penerima
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="border-2 border-dashed border-gray-300 rounded-lg mb-4 bg-white overflow-hidden">
+          <canvas
+            ref={canvasRef}
+            width={400}
+            height={200}
+            className="w-full cursor-crosshair"
+            style={{ touchAction: 'none' }}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchStart={startDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+          />
+        </div>
+
+        <p className="text-xs text-gray-500 text-center mb-4">
+          Tanda tangan di area di atas menggunakan mouse atau jari (touchscreen)
+        </p>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={clearSignature}
+            className="flex-1 btn btn-secondary"
+          >
+            Hapus
+          </button>
+          <button
+            type="button"
+            onClick={saveSignature}
+            className="flex-1 btn btn-primary"
+          >
+            Simpan Tanda Tangan
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 export default function Sales() {
   const [showModal, setShowModal] = useState(false)
@@ -19,6 +163,22 @@ export default function Sales() {
   const { storeInfo } = useSettingsStore()
   const { addTransaction } = useTransactionStore()
   const { user } = useAuthStore()
+  const { accounts, addCashFlow } = useAccountStore()
+  
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedSaleForPayment, setSelectedSaleForPayment] = useState(null)
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const [selectedSaleForSignature, setSelectedSaleForSignature] = useState(null)
+  const [showPaymentProofModal, setShowPaymentProofModal] = useState(false)
+  const [selectedSaleForProof, setSelectedSaleForProof] = useState(null)
+  const paymentProofInputRef = useRef(null)
+  
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const handleAddSale = () => {
     setEditingSale(null)
@@ -36,22 +196,75 @@ export default function Sales() {
     }
   }
 
+  const handleAddSignature = (sale) => {
+    setSelectedSaleForSignature(sale)
+    setShowSignatureModal(true)
+  }
+
+  const handleSaveSignature = async (signature) => {
+    if (selectedSaleForSignature) {
+      await updateSalesOrder(selectedSaleForSignature.id, { signature })
+      setShowSignatureModal(false)
+      setSelectedSaleForSignature(null)
+    }
+  }
+
+  const handleOpenPaymentProof = (sale) => {
+    setSelectedSaleForProof(sale)
+    setShowPaymentProofModal(true)
+  }
+
+  const handleUploadPaymentProof = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    // Convert to base64
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const base64 = event.target.result
+      if (selectedSaleForProof) {
+        await updateSalesOrder(selectedSaleForProof.id, { paymentProof: base64 })
+        setSelectedSaleForProof({ ...selectedSaleForProof, paymentProof: base64 })
+        alert('✓ Bukti pembayaran berhasil disimpan!')
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleDeletePaymentProof = async () => {
+    if (selectedSaleForProof && confirm('Hapus bukti pembayaran ini?')) {
+      await updateSalesOrder(selectedSaleForProof.id, { paymentProof: null })
+      setSelectedSaleForProof({ ...selectedSaleForProof, paymentProof: null })
+    }
+  }
+
   const handleMarkAsPaid = async (sale) => {
     if (sale.status === 'completed') {
       alert('Sales order ini sudah lunas!')
       return
     }
     
-    if (!confirm(`Tandai SO ${sale.id} sebagai LUNAS?\n\nIni akan:\n- Mencatat transaksi penjualan\n- Mengubah status menjadi Lunas\n\n(Stok sudah dikurangi saat SO dibuat)`)) {
+    // Show payment modal to select account
+    setSelectedSaleForPayment(sale)
+    setSelectedAccountId(accounts.length > 0 ? accounts[0].id : '')
+    setShowPaymentModal(true)
+  }
+
+  const processPayment = async () => {
+    const sale = selectedSaleForPayment
+    if (!sale) return
+
+    if (!selectedAccountId) {
+      alert('Pilih rekening tujuan pembayaran!')
       return
     }
 
     try {
-      // Stok sudah dikurangi saat SO dibuat, jadi langsung catat transaksi
+      const selectedAccount = accounts.find(a => a.id === selectedAccountId)
       
       // Create transaction record with same orderNumber as Sales Order
       const transaction = {
-        id: sale.orderNumber || sale.id, // Use same orderNumber as SO
+        id: sale.orderNumber || sale.id,
         items: sale.items.map(item => ({
           id: item.id,
           name: item.name,
@@ -65,7 +278,9 @@ export default function Sales() {
         discount: sale.discount || 0,
         tax: 0,
         total: sale.total,
-        paymentMethod: 'transfer',
+        paymentMethod: selectedAccount?.type || 'cash',
+        accountId: selectedAccountId,
+        accountName: selectedAccount?.name || 'Kas',
         cashAmount: sale.total,
         change: 0,
         cashierName: user?.name || 'Admin',
@@ -77,10 +292,23 @@ export default function Sales() {
       
       await addTransaction(transaction)
 
-      // 3. Update SO status to completed
+      // Add cash flow (money in)
+      await addCashFlow({
+        type: 'in',
+        amount: sale.total,
+        accountId: selectedAccountId,
+        category: 'sales',
+        description: `Penjualan SO: ${sale.orderNumber || sale.id}`,
+        referenceId: sale.id,
+        referenceType: 'sales_order'
+      })
+
+      // Update SO status to completed
       await updateStatus(sale.id, 'completed')
 
-      alert('✓ Sales Order berhasil ditandai LUNAS!\n\nStok sudah dikurangi dan transaksi tercatat.')
+      setShowPaymentModal(false)
+      setSelectedSaleForPayment(null)
+      alert('✓ Sales Order berhasil ditandai LUNAS!\n\nUang masuk ke: ' + (selectedAccount?.name || 'Kas'))
     } catch (error) {
       console.error('Error marking as paid:', error)
       alert('Gagal memproses: ' + error.message)
@@ -104,6 +332,7 @@ export default function Sales() {
     const storePhone = storeInfo?.phone || '-'
     const storeEmail = storeInfo?.email || '-'
     const storeLogo = storeInfo?.logo || ''
+    const signature = sale.signature || ''
     
     const content = `
       <!DOCTYPE html>
@@ -112,7 +341,8 @@ export default function Sales() {
         <title>Invoice - ${sale.id}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; padding: 15px; font-size: 10px; }
+          html, body { background: #ffffff !important; color: #000000 !important; }
+          body { font-family: Arial, sans-serif; padding: 70px 15px 15px 15px; font-size: 10px; }
           .invoice-header { text-align: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 8px; }
           .logo-section { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 6px; }
           .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 6px; display: flex; align-items: center; justify-center; overflow: hidden; }
@@ -137,14 +367,46 @@ export default function Sales() {
           .total-row.grand { font-size: 11px; font-weight: bold; border-top: 1px solid #333; padding-top: 6px; margin-top: 4px; }
           .notes { margin-top: 15px; padding: 8px; background: #f9fafb; border-left: 2px solid #2563eb; font-size: 8px; }
           .notes h4 { font-size: 9px; margin-bottom: 4px; }
+          .receipt-section { margin-top: 30px; border: 2px solid #333; padding: 15px; background: #fafafa; }
+          .receipt-title { font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 15px; text-transform: uppercase; border-bottom: 1px dashed #333; padding-bottom: 8px; }
+          .receipt-content { display: flex; justify-content: space-between; align-items: flex-start; }
+          .receipt-info { flex: 1; }
+          .receipt-info p { margin-bottom: 5px; font-size: 9px; }
+          .receipt-signature { width: 200px; text-align: center; }
+          .signature-box { border: 1px solid #ccc; height: 80px; margin-bottom: 5px; background: white; display: flex; align-items: center; justify-content: center; }
+          .signature-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+          .signature-label { font-size: 8px; color: #666; }
+          .signature-name { font-size: 10px; font-weight: bold; margin-top: 5px; }
           .footer { margin-top: 20px; text-align: center; color: #666; font-size: 8px; border-top: 1px solid #e5e7eb; padding-top: 8px; }
+          .action-buttons { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; z-index: 9999; background: #1e293b; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+          .action-buttons button { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+          .btn-print { background: #22c55e; color: white; }
+          .btn-close { background: #ef4444; color: white; }
           @media print {
             body { padding: 10px; }
             .no-print { display: none; }
+            .action-buttons { display: none; }
           }
         </style>
       </head>
       <body>
+        <div class="action-buttons no-print">
+          <button class="btn-print" onclick="window.print()">🖨️ Print</button>
+          <button class="btn-close" onclick="closeWindow()">✕ Tutup</button>
+        </div>
+        <script>
+          function closeWindow() {
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              window.close();
+            }
+            // Fallback: redirect to main page after short delay
+            setTimeout(function() {
+              window.location.href = '/sales';
+            }, 100);
+          }
+        </script>
         <div class="invoice-header">
           <div class="logo-section">
             <div class="logo">
@@ -171,7 +433,7 @@ export default function Sales() {
         <div class="invoice-info">
           <div class="info-section">
             <h3>Invoice No:</h3>
-            <p class="invoice-id">${sale.id}</p>
+            <p class="invoice-id">${sale.orderNumber || sale.id}</p>
             <h3 style="margin-top: 15px;">Tanggal:</h3>
             <p>${new Date(sale.date || new Date()).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
@@ -232,17 +494,35 @@ export default function Sales() {
           </div>
         ` : ''}
 
+        <!-- Tanda Terima Section -->
+        <div class="receipt-section">
+          <div class="receipt-title">📋 TANDA TERIMA BARANG</div>
+          <div class="receipt-content">
+            <div class="receipt-info">
+              <p><strong>No. Invoice:</strong> ${sale.orderNumber || sale.id}</p>
+              <p><strong>Tanggal Terima:</strong> ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <p><strong>Penerima:</strong> ${customerName}</p>
+              <p><strong>Total Item:</strong> ${sale.items.reduce((sum, item) => sum + item.qty, 0)} pcs</p>
+              <p><strong>Total Nilai:</strong> Rp ${total.toLocaleString('id-ID')}</p>
+              <p style="margin-top: 10px; font-size: 8px; color: #666;">Dengan menandatangani dokumen ini, penerima menyatakan telah menerima barang dalam kondisi baik dan lengkap sesuai dengan daftar di atas.</p>
+            </div>
+            <div class="receipt-signature">
+              <div class="signature-box">
+                ${signature ? `<img src="${signature}" alt="Tanda Tangan" />` : '<span style="color: #999; font-size: 10px;">Tanda Tangan</span>'}
+              </div>
+              <div class="signature-label">Tanda Tangan Penerima</div>
+              <div class="signature-name">${customerName}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="footer">
           <p>Terima kasih atas kepercayaan Anda!</p>
           <p style="margin-top: 5px;">Dicetak pada: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
         </div>
 
         <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 250);
-          }
+          // Auto print disabled for Android - use Print button instead
         </script>
       </body>
       </html>
@@ -292,6 +572,47 @@ export default function Sales() {
         </button>
       </div>
 
+      {/* Search and Filter */}
+      <div className="card">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Cari no. pesanan, pelanggan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+          >
+            <option value="all">Semua Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Diproses</option>
+            <option value="completed">Lunas</option>
+            <option value="cancelled">Dibatalkan</option>
+          </select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            placeholder="Dari Tanggal"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            placeholder="Sampai Tanggal"
+          />
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="card">
@@ -335,7 +656,48 @@ export default function Sales() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {salesOrders.filter(sale => sale.items?.length > 0 || sale.total > 0).map((sale) => (
+              {(() => {
+                // Filter sales orders
+                const filteredSales = salesOrders.filter(s => {
+                  // Basic filter for valid sales
+                  if (!(s.items?.length > 0 || s.total > 0)) return false
+                  // Search filter
+                  if (searchQuery) {
+                    const query = searchQuery.toLowerCase()
+                    const matchOrder = (s.orderNumber || s.id || '').toLowerCase().includes(query)
+                    const matchCustomer = (s.customer?.name || s.customerName || '').toLowerCase().includes(query)
+                    if (!matchOrder && !matchCustomer) return false
+                  }
+                  // Status filter
+                  if (statusFilter !== 'all' && s.status !== statusFilter) return false
+                  // Date filter
+                  if (dateFrom) {
+                    const saleDate = new Date(s.date)
+                    const fromDate = new Date(dateFrom)
+                    if (saleDate < fromDate) return false
+                  }
+                  if (dateTo) {
+                    const saleDate = new Date(s.date)
+                    const toDate = new Date(dateTo)
+                    toDate.setHours(23, 59, 59, 999)
+                    if (saleDate > toDate) return false
+                  }
+                  return true
+                })
+
+                if (filteredSales.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                        <Package size={48} className="mx-auto mb-4 text-gray-300" />
+                        <p className="text-lg font-medium">{salesOrders.length === 0 ? 'Belum ada sales order' : 'Tidak ada hasil'}</p>
+                        <p className="text-sm mt-1">{salesOrders.length === 0 ? 'Klik "Buat Sales Order" untuk menambah penjualan baru' : 'Coba ubah filter pencarian'}</p>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                return filteredSales.map((sale) => (
                 <tr key={sale.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap font-mono font-semibold">
                     {sale.orderNumber || sale.id}
@@ -382,6 +744,20 @@ export default function Sales() {
                       </button>
                     )}
                     <button
+                      onClick={() => handleAddSignature(sale)}
+                      className={`${sale.signature ? 'text-purple-600' : 'text-gray-400'} hover:text-purple-700`}
+                      title={sale.signature ? 'Lihat/Ubah Tanda Tangan' : 'Tambah Tanda Tangan'}
+                    >
+                      <PenTool size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleOpenPaymentProof(sale)}
+                      className={`${sale.paymentProof ? 'text-orange-600' : 'text-gray-400'} hover:text-orange-700`}
+                      title={sale.paymentProof ? 'Lihat Bukti Bayar' : 'Upload Bukti Bayar'}
+                    >
+                      <Camera size={18} />
+                    </button>
+                    <button
                       onClick={() => handlePrint(sale)}
                       className="text-green-600 hover:text-green-700"
                       title="Print Invoice"
@@ -404,7 +780,8 @@ export default function Sales() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+              })()}
             </tbody>
           </table>
         </div>
@@ -421,20 +798,173 @@ export default function Sales() {
             setEditingSale(null)
           }}
           onSubmit={async (sale) => {
-            if (editingSale) {
-              await updateSalesOrder(sale.id, sale)
-              setShowModal(false)
-              setEditingSale(null)
-            } else {
-              // Kurangi stok saat buat SO baru
-              for (const item of sale.items) {
-                await updateStock(item.id, item.qty, 'subtract', 'sales_order', `SO: ${sale.orderNumber || 'New'}`, user?.id)
+            try {
+              if (editingSale) {
+                await updateSalesOrder(sale.id, sale)
+                setShowModal(false)
+                setEditingSale(null)
+              } else {
+                // Kurangi stok saat buat SO baru
+                for (const item of sale.items) {
+                  await updateStock(item.id, item.qty, 'subtract', 'sales_order', `SO: ${sale.orderNumber || 'New'}`, user?.id)
+                }
+                await addSalesOrder(sale)
+                setShowModal(false)
+                alert('✓ Sales Order berhasil dibuat!\nStok produk sudah dikurangi.')
               }
-              await addSalesOrder(sale)
-              alert('✓ Sales Order berhasil dibuat!\nStok produk sudah dikurangi.')
+            } catch (error) {
+              console.error('Error saving sales order:', error)
+              alert('Gagal menyimpan: ' + error.message)
             }
           }}
         />
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedSaleForPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Konfirmasi Pembayaran</h3>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600">Sales Order</p>
+                <p className="font-bold text-lg">{selectedSaleForPayment.orderNumber || selectedSaleForPayment.id}</p>
+                <p className="text-sm text-gray-600 mt-2">Total Pembayaran</p>
+                <p className="font-bold text-2xl text-primary">
+                  Rp {(selectedSaleForPayment.total || 0).toLocaleString('id-ID')}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  <Wallet size={16} className="inline mr-1" />
+                  Uang Masuk ke Rekening *
+                </label>
+                {accounts.length === 0 ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800">
+                      Belum ada rekening. Tambahkan rekening di menu Pengaturan → Kelola Rekening.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                    className="input"
+                  >
+                    {accounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.type === 'cash' ? 'Kas' : account.type === 'bank' ? 'Bank' : 'E-Wallet'})
+                        {' - Saldo: Rp ' + (account.balance || 0).toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={processPayment}
+                  disabled={accounts.length === 0}
+                  className="flex-1 btn btn-primary"
+                >
+                  Konfirmasi Pembayaran
+                </button>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 btn btn-secondary"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Signature Modal */}
+      {showSignatureModal && selectedSaleForSignature && (
+        <SignaturePad
+          initialSignature={selectedSaleForSignature.signature}
+          onSave={handleSaveSignature}
+          onClose={() => {
+            setShowSignatureModal(false)
+            setSelectedSaleForSignature(null)
+          }}
+        />
+      )}
+
+      {/* Payment Proof Modal */}
+      {showPaymentProofModal && selectedSaleForProof && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Bukti Pembayaran</h3>
+              <button onClick={() => setShowPaymentProofModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="text-sm text-gray-600 mb-4">
+              <p><strong>No. Pesanan:</strong> {selectedSaleForProof.orderNumber || selectedSaleForProof.id}</p>
+              <p><strong>Pelanggan:</strong> {selectedSaleForProof.customer?.name || '-'}</p>
+              <p><strong>Total:</strong> Rp {(selectedSaleForProof.total || 0).toLocaleString('id-ID')}</p>
+            </div>
+
+            {selectedSaleForProof.paymentProof ? (
+              <div className="space-y-4">
+                <div className="border rounded-lg overflow-hidden">
+                  <img 
+                    src={selectedSaleForProof.paymentProof} 
+                    alt="Bukti Pembayaran" 
+                    className="w-full h-auto"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => paymentProofInputRef.current?.click()}
+                    className="flex-1 btn btn-primary flex items-center justify-center gap-2"
+                  >
+                    <Camera size={18} />
+                    Ganti Foto
+                  </button>
+                  <button
+                    onClick={handleDeletePaymentProof}
+                    className="flex-1 btn btn-danger flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={18} />
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div 
+                  onClick={() => paymentProofInputRef.current?.click()}
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors"
+                >
+                  <Camera size={48} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-600 font-medium">Klik untuk upload foto</p>
+                  <p className="text-sm text-gray-400 mt-1">Foto resi transfer / bukti pembayaran</p>
+                </div>
+              </div>
+            )}
+
+            <input
+              ref={paymentProofInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleUploadPaymentProof}
+              className="hidden"
+            />
+          </div>
+        </div>
       )}
     </div>
   )
@@ -448,7 +978,8 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
     date: new Date().toISOString().split('T')[0],
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     status: 'pending',
-    notes: ''
+    notes: '',
+    signature: ''
   })
 
   const [selectedProduct, setSelectedProduct] = useState('')
@@ -456,6 +987,7 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
   const [productSearch, setProductSearch] = useState('')
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
   const dropdownRef = useRef(null)
 
   // Close dropdown when clicking outside
@@ -899,6 +1431,50 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
             />
           </div>
 
+          {/* Signature Section */}
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+              <PenTool size={16} />
+              Tanda Tangan Penerima
+            </label>
+            {formData.signature ? (
+              <div className="space-y-2">
+                <div className="border rounded-lg p-2 bg-gray-50">
+                  <img 
+                    src={formData.signature} 
+                    alt="Tanda Tangan" 
+                    className="max-h-24 mx-auto"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSignaturePad(true)}
+                    className="flex-1 btn btn-secondary text-sm"
+                  >
+                    Ubah Tanda Tangan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, signature: '' })}
+                    className="btn btn-secondary text-sm text-red-600"
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowSignaturePad(true)}
+                className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 text-gray-500 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+              >
+                <PenTool size={20} />
+                Klik untuk Tanda Tangan
+              </button>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-4">
             <button type="submit" className="flex-1 btn btn-primary">
               {sale ? 'Update' : 'Simpan'} Sales Order
@@ -918,6 +1494,18 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
             setShowBarcodeScanner(false)
           }}
           onClose={() => setShowBarcodeScanner(false)}
+        />
+      )}
+
+      {/* Signature Pad Modal */}
+      {showSignaturePad && (
+        <SignaturePad
+          initialSignature={formData.signature}
+          onSave={(signature) => {
+            setFormData({ ...formData, signature })
+            setShowSignaturePad(false)
+          }}
+          onClose={() => setShowSignaturePad(false)}
         />
       )}
     </div>

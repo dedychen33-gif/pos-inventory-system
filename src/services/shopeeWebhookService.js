@@ -1,4 +1,4 @@
-import { supabase } from '../config/supabase';
+import { supabase } from '../lib/supabase';
 
 class ShopeeWebhookService {
   async getWebhookLogs(filters = {}) {
@@ -28,7 +28,7 @@ class ShopeeWebhookService {
   async getSyncQueue(filters = {}) {
     let query = supabase
       .from('shopee_sync_queue')
-      .select('*, products(name, sku)')
+      .select('*')
       .order('priority', { ascending: false })
       .order('created_at', { ascending: true });
     

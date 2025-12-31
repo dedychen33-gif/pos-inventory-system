@@ -20,6 +20,9 @@ import Settings from './pages/Settings'
 import RemoteScanner from './pages/RemoteScanner'
 import Expenses from './pages/Expenses'
 import Debts from './pages/Debts'
+import ScanResi from './pages/ScanResi'
+import ShopeeWebhookMonitor from './components/ShopeeWebhookMonitor'
+import ShopeeCallback from './pages/ShopeeCallback'
 
 function App() {
   const { isAuthenticated, user, resetToDefaultAdmin } = useAuthStore()
@@ -55,10 +58,13 @@ function App() {
                     <Route path="/purchases" element={<Purchases />} />
                     <Route path="/sales" element={<Sales />} />
                     <Route path="/returns" element={<Returns />} />
+                    <Route path="/scan-resi" element={<ScanResi />} />
                     <Route path="/customers" element={<Customers />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/expenses" element={<Expenses />} />
                     <Route path="/debts" element={<Debts />} />
+                    <Route path="/shopee" element={<ShopeeWebhookMonitor />} />
+                    <Route path="/marketplace/callback" element={<ShopeeCallback />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

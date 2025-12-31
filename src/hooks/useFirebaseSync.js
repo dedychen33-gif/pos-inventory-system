@@ -16,6 +16,10 @@ import { usePurchaseStore } from '../store/purchaseStore';
 import { useSalesOrderStore } from '../store/salesOrderStore';
 import { useExpenseStore } from '../store/expenseStore';
 import { useDebtStore } from '../store/debtStore';
+import { useReturnsStore } from '../pages/Returns';
+import { useSettingsStore } from '../store/settingsStore';
+import { useAccountStore } from '../store/accountStore';
+import { useAuthStore } from '../store/authStore';
 
 export function useFirebaseSync() {
   const [syncStatus, setSyncStatus] = useState({
@@ -29,12 +33,22 @@ export function useFirebaseSync() {
 
   // Get store setters
   const setProducts = useProductStore(state => state.setProducts);
+  const setCategories = useProductStore(state => state.setCategories);
+  const setUnits = useProductStore(state => state.setUnits);
+  const categories = useProductStore(state => state.categories);
+  const units = useProductStore(state => state.units);
   const setCustomers = useCustomerStore(state => state.setCustomers);
   const setTransactions = useTransactionStore(state => state.setTransactions);
   const { setSuppliers, setPurchases } = usePurchaseStore();
   const setSalesOrders = useSalesOrderStore(state => state.setSalesOrders);
   const setExpenses = useExpenseStore(state => state.setExpenses);
   const setDebts = useDebtStore(state => state.setDebts);
+  const setEmployees = useDebtStore(state => state.setEmployees);
+  const setKasbons = useDebtStore(state => state.setKasbons);
+  const setReturns = useReturnsStore(state => state.setReturns);
+  const setStoreInfo = useSettingsStore(state => state.setStoreInfo);
+  const { setAccounts, setCashFlows } = useAccountStore();
+  const setUsers = useAuthStore(state => state.setUsers);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -95,17 +109,72 @@ export function useFirebaseSync() {
     unsubscribers.current.push(unsubProducts);
 
     // Subscribe to Categories from Firebase
-    const unsubCategories = firebaseDB.onValue('categories', (data) => {
+    const unsubCategories = firebaseDB.onValue('categories', async (data) => {
       if (data && Array.isArray(data) && data.length > 0) {
         console.log(`📂 Firebase: ${data.length} categories synced`);
-        setCategories(data);
+        
+        // Also extract categories from products and merge
+        const productsData = await firebaseDB.get('products');
+        if (productsData.success && productsData.data) {
+          const productsList = Object.values(productsData.data);
+          const productCategories = [...new Set(productsList.map(p => p.category).filter(c => c && c.trim()))];
+          
+          // Merge Firebase categories with product categories
+          const mergedCategories = [...new Set([...data, ...productCategories])];
+          
+          if (mergedCategories.length > data.length) {
+            console.log(`📂 Found ${mergedCategories.length - data.length} new categories from products, syncing...`);
+            await firebaseDB.set('categories', mergedCategories);
+            setCategories(mergedCategories);
+          } else {
+            setCategories(data);
+          }
+        } else {
+          setCategories(data);
+        }
       } else {
-        console.log('📂 Firebase: No categories, keeping local defaults');
+        // Firebase has no categories - extract from products and upload
+        console.log('📂 Firebase: No categories, extracting from products...');
+        const productsData = await firebaseDB.get('products');
+        let categoriesToUpload = categories;
+        
+        if (productsData.success && productsData.data) {
+          const productsList = Object.values(productsData.data);
+          const productCategories = [...new Set(productsList.map(p => p.category).filter(c => c && c.trim()))];
+          categoriesToUpload = [...new Set([...categories, ...productCategories])];
+        }
+        
+        if (categoriesToUpload && categoriesToUpload.length > 0) {
+          const result = await firebaseDB.set('categories', categoriesToUpload);
+          if (result.success) {
+            console.log(`✅ Uploaded ${categoriesToUpload.length} categories to Firebase`);
+            setCategories(categoriesToUpload);
+          }
+        }
       }
     });
     unsubscribers.current.push(unsubCategories);
 
-    // Subscribe to Customers - only update if Firebase has data
+    // Subscribe to Units from Firebase
+    const unsubUnits = firebaseDB.onValue('units', async (data) => {
+      if (data && Array.isArray(data) && data.length > 0) {
+        console.log(`📏 Firebase: ${data.length} units synced`);
+        setUnits(data);
+      } else {
+        // Firebase has no units - upload local units to Firebase
+        console.log('📏 Firebase: No units, uploading local units...');
+        const localUnits = units;
+        if (localUnits && localUnits.length > 0) {
+          const result = await firebaseDB.set('units', localUnits);
+          if (result.success) {
+            console.log(`✅ Uploaded ${localUnits.length} local units to Firebase`);
+          }
+        }
+      }
+    });
+    unsubscribers.current.push(unsubUnits);
+
+    // Subscribe to Customers - always sync from Firebase
     const unsubCustomers = firebaseDB.onValue('customers', (data) => {
       const restoreTs = localStorage.getItem('restore-timestamp');
       if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
@@ -113,7 +182,11 @@ export function useFirebaseSync() {
       if (data) {
         const customers = Object.entries(data).map(([id, item]) => ({ ...item, id }));
         console.log(`👥 Firebase: ${customers.length} customers synced`);
-        if (customers.length > 0) setCustomers(customers);
+        setCustomers(customers);
+      } else {
+        // Firebase has no customers - clear local
+        console.log('👥 Firebase: No customers, clearing local');
+        setCustomers([]);
       }
     });
     unsubscribers.current.push(unsubCustomers);
@@ -132,12 +205,35 @@ export function useFirebaseSync() {
     unsubscribers.current.push(unsubTransactions);
 
     // Subscribe to Suppliers
-    const unsubSuppliers = firebaseDB.onValue('suppliers', (data) => {
+    const unsubSuppliers = firebaseDB.onValue('suppliers', async (data) => {
       const restoreTs = localStorage.getItem('restore-timestamp');
       if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
       
       if (data) {
-        const suppliers = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        const allSuppliers = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        
+        // Deduplicate by name (keep first occurrence, delete duplicates from Firebase)
+        const seen = new Map();
+        const duplicateIds = [];
+        
+        for (const supplier of allSuppliers) {
+          const key = supplier.name?.toLowerCase().trim();
+          if (key && seen.has(key)) {
+            duplicateIds.push(supplier.id);
+          } else if (key) {
+            seen.set(key, supplier);
+          }
+        }
+        
+        // Remove duplicates from Firebase
+        if (duplicateIds.length > 0) {
+          console.log(`🗑️ Removing ${duplicateIds.length} duplicate suppliers...`);
+          for (const id of duplicateIds) {
+            await firebaseDB.remove(`suppliers/${id}`);
+          }
+        }
+        
+        const suppliers = Array.from(seen.values());
         console.log(`🚚 Firebase: ${suppliers.length} suppliers synced`);
         if (suppliers.length > 0) setSuppliers(suppliers);
       }
@@ -165,7 +261,11 @@ export function useFirebaseSync() {
       if (data) {
         const salesOrders = Object.entries(data).map(([id, item]) => ({ ...item, id }));
         console.log(`📝 Firebase: ${salesOrders.length} sales orders synced`);
-        if (salesOrders.length > 0) setSalesOrders(salesOrders);
+        setSalesOrders(salesOrders);
+      } else {
+        // Handle empty/deleted data
+        console.log('📝 Firebase: No sales orders, clearing local');
+        setSalesOrders([]);
       }
     });
     unsubscribers.current.push(unsubSalesOrders);
@@ -196,6 +296,132 @@ export function useFirebaseSync() {
     });
     unsubscribers.current.push(unsubDebts);
 
+    // Subscribe to Employees (for Kasbon)
+    const unsubEmployees = firebaseDB.onValue('employees', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const employees = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`👤 Firebase: ${employees.length} employees synced`);
+        if (setEmployees) setEmployees(employees);
+      } else {
+        // Handle empty/deleted data
+        console.log('👤 Firebase: No employees, clearing local');
+        if (setEmployees) setEmployees([]);
+      }
+    });
+    unsubscribers.current.push(unsubEmployees);
+
+    // Subscribe to Kasbons
+    const unsubKasbons = firebaseDB.onValue('kasbons', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const kasbons = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`💵 Firebase: ${kasbons.length} kasbons synced`);
+        if (setKasbons) setKasbons(kasbons);
+      } else {
+        // Handle empty/deleted data
+        console.log('💵 Firebase: No kasbons, clearing local');
+        if (setKasbons) setKasbons([]);
+      }
+    });
+    unsubscribers.current.push(unsubKasbons);
+
+    // Subscribe to Returns
+    const unsubReturns = firebaseDB.onValue('returns', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const returns = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`🔄 Firebase: ${returns.length} returns synced`);
+        if (returns.length > 0) setReturns(returns);
+      }
+    });
+    unsubscribers.current.push(unsubReturns);
+
+    // Subscribe to Settings
+    const unsubSettings = firebaseDB.onValue('settings/default', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const storeInfo = {
+          name: data.store_name || 'TOKO SEJAHTERA',
+          address: data.store_address || '',
+          phone: data.store_phone || '',
+          email: data.store_email || '',
+          logo: data.logo_url || null,
+          taxPercent: data.tax_percent || 11,
+          receiptFooter: data.receipt_footer || ''
+        };
+        console.log(`⚙️ Firebase: Settings synced`);
+        setStoreInfo(storeInfo);
+      }
+    });
+    unsubscribers.current.push(unsubSettings);
+
+    // Subscribe to Accounts (Rekening/Kas)
+    const unsubAccounts = firebaseDB.onValue('accounts', async (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const accounts = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`🏦 Firebase: ${accounts.length} accounts synced`);
+        setAccounts(accounts);
+      } else {
+        // Firebase has no accounts - create default Kas account
+        console.log('🏦 Firebase: No accounts, creating default Kas...');
+        const defaultKas = { id: 'kas-default', name: 'Kas', type: 'cash', balance: 0, isDefault: true, createdAt: new Date().toISOString() };
+        await firebaseDB.set(`accounts/${defaultKas.id}`, defaultKas);
+        setAccounts([defaultKas]);
+      }
+    });
+    unsubscribers.current.push(unsubAccounts);
+
+    // Subscribe to Cash Flows
+    const unsubCashFlows = firebaseDB.onValue('cashFlows', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const cashFlows = Object.entries(data).map(([id, item]) => ({ ...item, id }));
+        console.log(`💰 Firebase: ${cashFlows.length} cash flows synced`);
+        if (cashFlows.length > 0) setCashFlows(cashFlows);
+      }
+    });
+    unsubscribers.current.push(unsubCashFlows);
+
+    // Subscribe to Users (for login sync between web and Android)
+    const unsubUsers = firebaseDB.onValue('app_users', (data) => {
+      const restoreTs = localStorage.getItem('restore-timestamp');
+      if (restoreTs && (Date.now() - parseInt(restoreTs, 10)) < 5 * 60 * 1000) return;
+      
+      if (data) {
+        const firebaseUsers = Object.entries(data).map(([id, item]) => ({
+          id: item.id || parseInt(id) || Date.now(),
+          username: item.username,
+          password: item.password_hash || item.password,
+          name: item.name,
+          role: item.role || 'cashier',
+          permissions: item.permissions || ['pos'],
+          isActive: item.is_active !== false,
+          createdAt: item.created_at || new Date().toISOString(),
+          updatedAt: item.updated_at,
+          marketplaceCredentials: item.marketplaceCredentials || {}
+        }));
+        console.log(`👤 Firebase: ${firebaseUsers.length} users synced`);
+        if (firebaseUsers.length > 0 && setUsers) {
+          setUsers(firebaseUsers);
+        }
+      }
+    });
+    unsubscribers.current.push(unsubUsers);
+
     setSyncStatus({
       isConnected: true,
       isSyncing: false,
@@ -210,7 +436,7 @@ export function useFirebaseSync() {
         if (typeof unsub === 'function') unsub();
       });
     };
-  }, [setProducts, setCustomers, setTransactions, setSuppliers, setPurchases, setSalesOrders, setExpenses, setDebts]);
+  }, [setProducts, setCustomers, setTransactions, setSuppliers, setPurchases, setSalesOrders, setExpenses, setDebts, setReturns, setStoreInfo]);
 
   return syncStatus;
 }

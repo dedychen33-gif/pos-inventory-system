@@ -102,6 +102,19 @@ export const useProductStore = create(
         if (result.success) {
           // Local state will be updated by Firebase listener
           console.log('✅ Product added to Firebase')
+          
+          // Auto-add category if not exists in categories list
+          const category = newProduct.category
+          if (category && category.trim()) {
+            const currentCategories = get().categories
+            if (!currentCategories.includes(category)) {
+              console.log('📂 Auto-adding new category:', category)
+              const newCategories = [...currentCategories, category]
+              await firebaseDB.set('categories', newCategories)
+              set({ categories: newCategories })
+            }
+          }
+          
           return { success: true, product: newProduct }
         } else {
           console.error('❌ Failed to add product:', result.error)
@@ -124,6 +137,19 @@ export const useProductStore = create(
         
         if (result.success) {
           console.log('✅ Product updated in Firebase')
+          
+          // Auto-add category if not exists in categories list
+          const category = updatedProduct.category
+          if (category && category.trim()) {
+            const currentCategories = get().categories
+            if (!currentCategories.includes(category)) {
+              console.log('📂 Auto-adding new category:', category)
+              const newCategories = [...currentCategories, category]
+              await firebaseDB.set('categories', newCategories)
+              set({ categories: newCategories })
+            }
+          }
+          
           return { success: true }
         } else {
           console.error('❌ Failed to update product:', result.error)
@@ -348,7 +374,13 @@ export const useProductStore = create(
       }
     }),
     {
-      name: 'product-storage'
+      name: 'product-storage',
+      partialize: (state) => ({
+        // Only persist small data - products come from Firebase
+        categories: state.categories,
+        units: state.units
+        // Don't persist: products, stockHistory (too large, comes from Firebase)
+      })
     }
   )
 )

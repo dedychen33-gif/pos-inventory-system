@@ -52,9 +52,15 @@ export const useCustomerStore = create(
         }
       },
 
-      // Delete customer - remove from Firebase
+      // Delete customer - remove from Firebase and local state immediately
       deleteCustomer: async (id) => {
         console.log('👥 Deleting customer from Firebase:', id)
+        
+        // Remove from local state immediately to prevent race condition
+        set(state => ({
+          customers: state.customers.filter(c => c.id !== id)
+        }))
+        
         const result = await firebaseDB.remove(`customers/${id}`)
         
         if (result.success) {

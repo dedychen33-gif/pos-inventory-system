@@ -27,6 +27,17 @@ export const useSettingsStore = create(
       whatsappNumber: '',
       whatsappMessage: 'Halo, saya ingin bertanya tentang produk di toko Anda.',
 
+      // Shopee API Credentials
+      shopeeCredentials: {
+        partnerId: '',
+        partnerKey: '',
+        shopId: '',
+        pushPartnerKey: '',
+      },
+
+      // Direct setter for Firebase realtime sync
+      setStoreInfo: (info) => set({ storeInfo: info }),
+
       updateStoreInfo: async (info) => {
         set((state) => ({
           storeInfo: { ...state.storeInfo, ...info }
@@ -70,6 +81,25 @@ export const useSettingsStore = create(
           whatsappNumber: number,
           whatsappMessage: message || get().whatsappMessage
         })
+      },
+
+      // Update Shopee credentials
+      updateShopeeCredentials: async (credentials) => {
+        set({ shopeeCredentials: credentials })
+        
+        // Sync to Firebase
+        try {
+          await firebaseDB.set('settings/shopee', {
+            partner_id: credentials.partnerId || '',
+            partner_key: credentials.partnerKey || '',
+            shop_id: credentials.shopId || '',
+            push_partner_key: credentials.pushPartnerKey || '',
+            updated_at: new Date().toISOString()
+          })
+          console.log('✅ Shopee credentials saved to Firebase')
+        } catch (error) {
+          console.error('❌ Error saving Shopee credentials:', error.message)
+        }
       },
 
       // Calculate marketplace stock with buffer

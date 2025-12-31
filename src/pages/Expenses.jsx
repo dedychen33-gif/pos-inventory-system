@@ -217,20 +217,24 @@ export default function Expenses() {
               <option key={cat.id} value={cat.id}>{cat.label}</option>
             ))}
           </select>
-          <input
-            type="date"
-            value={filterDateFrom}
-            onChange={(e) => setFilterDateFrom(e.target.value)}
-            className="input w-full md:w-40"
-            placeholder="Dari tanggal"
-          />
-          <input
-            type="date"
-            value={filterDateTo}
-            onChange={(e) => setFilterDateTo(e.target.value)}
-            className="input w-full md:w-40"
-            placeholder="Sampai tanggal"
-          />
+          <div className="flex flex-col w-full md:w-40">
+            <label className="text-xs text-gray-500 mb-1">Dari Tanggal</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div className="flex flex-col w-full md:w-40">
+            <label className="text-xs text-gray-500 mb-1">Sampai Tanggal</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="input"
+            />
+          </div>
           <button onClick={exportToCSV} className="btn btn-outline">
             <Download size={20} />
             Export

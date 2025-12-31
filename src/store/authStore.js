@@ -120,6 +120,9 @@ export const useAuthStore = create(
           }
         }
       ],
+
+      // Setter for Firebase sync
+      setUsers: (users) => set({ users }),
       
       login: (username, password) => {
         const users = get().users

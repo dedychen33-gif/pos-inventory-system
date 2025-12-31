@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight, Download, FileSpreadsheet, Cloud } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, X, Image as ImageIcon, Package, Camera, QrCode, Store, ExternalLink, RefreshCw, Upload, ChevronDown, ChevronRight, Download, FileSpreadsheet, Cloud, Check } from 'lucide-react'
 import { useProductStore } from '../store/productStore'
 import { useAuthStore } from '../store/authStore'
 import { isAndroid } from '../utils/platform'
@@ -90,6 +90,9 @@ export default function Products() {
   const [showSyncShopeeModal, setShowSyncShopeeModal] = useState(false)
   const [syncingProduct, setSyncingProduct] = useState(null)
   const [isSyncingToShopee, setIsSyncingToShopee] = useState(false)
+  const [previewImage, setPreviewImage] = useState(null)
+  const [editingVariantData, setEditingVariantData] = useState(null)
+  const [showEditVariantModal, setShowEditVariantModal] = useState(false)
   
   const { products, categories, addProduct, updateProduct, deleteProduct, isSyncing } = useProductStore()
   const { user } = useAuthStore()
@@ -420,7 +423,39 @@ export default function Products() {
 
   const handleSubmit = (formData) => {
     if (editingProduct) {
-      updateProduct(editingProduct.id, formData)
+      // Check if editing a variant (has variantName or is from variants array)
+      if (editingProduct.variantName || editingProduct.modelId) {
+        // Find parent product that contains this variant
+        const parentProduct = products.find(p => 
+          p.variants && p.variants.some(v => 
+            (v.id === editingProduct.id) || 
+            (v.sku === editingProduct.sku) ||
+            (v.modelId === editingProduct.modelId)
+          )
+        )
+        
+        if (parentProduct) {
+          // Update the variant in parent's variants array
+          const updatedVariants = parentProduct.variants.map(v => {
+            if ((v.id === editingProduct.id) || (v.sku === editingProduct.sku) || (v.modelId === editingProduct.modelId)) {
+              return {
+                ...v,
+                ...formData,
+                name: formData.name || formData.variantName || v.name,
+                variantName: formData.name || formData.variantName || v.variantName,
+                image: formData.image || formData.photos?.[0] || v.image
+              }
+            }
+            return v
+          })
+          updateProduct(parentProduct.id, { ...parentProduct, variants: updatedVariants })
+        } else {
+          // Fallback: update as standalone product
+          updateProduct(editingProduct.id, formData)
+        }
+      } else {
+        updateProduct(editingProduct.id, formData)
+      }
       setShowModal(false)
       setEditingProduct(null)
     } else {
@@ -432,6 +467,55 @@ export default function Products() {
   const handleEdit = (product) => {
     setEditingProduct(product)
     setShowModal(true)
+  }
+
+  // Handle edit variant from product list
+  const handleEditVariant = (parentProduct, variant, variantIndex) => {
+    setEditingVariantData({
+      parentProduct,
+      variant,
+      variantIndex
+    })
+    setShowEditVariantModal(true)
+  }
+
+  // Handle update variant from product list
+  const handleUpdateVariant = (updatedVariant) => {
+    if (editingVariantData) {
+      const { parentProduct, variant, variantIndex } = editingVariantData
+      
+      // Check if variant is a separate product (has its own id in products array)
+      // or an embedded variant in parent's variants array
+      const isVariantSeparateProduct = variant.id && products.some(p => p.id === variant.id)
+      
+      if (isVariantSeparateProduct) {
+        // Variant is a separate product entry - update it directly
+        console.log('🔄 Updating variant as separate product:', variant.id)
+        updateProduct(variant.id, {
+          ...updatedVariant,
+          image: updatedVariant.image || '',
+          photos: updatedVariant.image ? [updatedVariant.image] : []
+        })
+      } else {
+        // Variant is embedded in parent product's variants array
+        const freshProduct = products.find(p => p.id === parentProduct.id)
+        if (!freshProduct) {
+          alert('Produk tidak ditemukan!')
+          return
+        }
+        const updatedVariants = [...(freshProduct.variants || [])]
+        updatedVariants[variantIndex] = {
+          ...updatedVariants[variantIndex],
+          ...updatedVariant
+        }
+        console.log('🔄 Updating embedded variant:', updatedVariant)
+        updateProduct(freshProduct.id, { variants: updatedVariants })
+      }
+      
+      setShowEditVariantModal(false)
+      setEditingVariantData(null)
+      alert('Varian berhasil diupdate!')
+    }
   }
 
   const handleDelete = (id) => {
@@ -659,45 +743,173 @@ export default function Products() {
       {isAndroid ? (
         <div className="space-y-3">
           {displayProducts.map((product) => (
-            <div 
-              key={product.id} 
-              className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 active:bg-gray-50"
-              onClick={() => {
-                setEditingProduct(product)
-                setShowModal(true)
-              }}
-            >
-              <div className="flex gap-3">
-                {/* Product Image */}
-                <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                  {product.image ? (
-                    <img 
-                      src={product.image} 
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package size={24} className="text-gray-400" />
-                    </div>
+            <div key={product.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Main Product Card */}
+              <div 
+                className={`p-3 ${product.isGrouped ? 'bg-blue-50/50' : ''}`}
+                onClick={() => {
+                  if (product.isGrouped) {
+                    toggleExpand(product.id)
+                  } else {
+                    setEditingProduct(product)
+                    setShowModal(true)
+                  }
+                }}
+              >
+                <div className="flex gap-3">
+                  {/* Expand button for grouped products */}
+                  {product.isGrouped && (
+                    <button
+                      className="self-center p-1 rounded bg-blue-100"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleExpand(product.id)
+                      }}
+                    >
+                      {expandedProducts[product.id] ? (
+                        <ChevronDown size={20} className="text-blue-600" />
+                      ) : (
+                        <ChevronRight size={20} className="text-blue-600" />
+                      )}
+                    </button>
                   )}
-                </div>
-                {/* Product Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{product.name}</p>
-                  <p className="text-xs text-gray-500">{product.sku || product.code}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-primary font-bold">Rp {product.price?.toLocaleString('id-ID')}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      product.stock === 0 ? 'bg-red-100 text-red-700' :
-                      product.stock <= (product.minStock || 5) ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      Stok: {product.stock}
-                    </span>
+                  {/* Product Image */}
+                  <div 
+                    className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 cursor-pointer"
+                    onClick={(e) => {
+                      if (product.image) {
+                        e.stopPropagation()
+                        setPreviewImage({ url: product.image, name: product.name })
+                      }
+                    }}
+                  >
+                    {product.image ? (
+                      <img 
+                        src={product.image} 
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Package size={24} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  {/* Product Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900 truncate">{product.name}</p>
+                      {product.isGrouped && (
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
+                          {product.variantCount} Varian
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">{product.sku || product.code}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      {product.isGrouped ? (
+                        <p className="text-primary font-bold text-sm">
+                          {typeof product.priceRange === 'object' 
+                            ? `Rp ${product.priceRange.min.toLocaleString('id-ID')} - ${product.priceRange.max.toLocaleString('id-ID')}`
+                            : `Rp ${(product.priceRange || 0).toLocaleString('id-ID')}`
+                          }
+                        </p>
+                      ) : (
+                        <p className="text-primary font-bold">Rp {product.price?.toLocaleString('id-ID')}</p>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        (product.isGrouped ? product.totalStock : product.stock) === 0 ? 'bg-red-100 text-red-700' :
+                        (product.isGrouped ? product.totalStock : product.stock) <= (product.minStock || 5) ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        Stok: {product.isGrouped ? product.totalStock : product.stock}
+                      </span>
+                    </div>
+                    {/* Action Buttons for Mobile - only for non-grouped products */}
+                    {!product.isGrouped && (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingProduct(product)
+                            setShowModal(true)
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium"
+                        >
+                          <Edit size={14} />
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(product.id)
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium"
+                        >
+                          <Trash2 size={14} />
+                          Hapus
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Variant List (expanded) */}
+              {product.isGrouped && expandedProducts[product.id] && (
+                <div className="border-t border-blue-200 bg-blue-50/30">
+                  {product.variants.map((variant, idx) => (
+                    <div 
+                      key={variant.id || idx} 
+                      className="p-3 border-b border-blue-100 last:border-b-0"
+                      onClick={() => handleEditVariant(product, variant, idx)}
+                    >
+                      <div className="flex gap-3 pl-4">
+                        {/* Variant Image */}
+                        <div 
+                          className={`w-12 h-12 rounded-lg overflow-hidden bg-white border border-blue-200 flex-shrink-0 ${(variant.image || product.image) ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : ''}`}
+                          onClick={(e) => {
+                            if (variant.image || product.image) {
+                              e.stopPropagation()
+                              setPreviewImage({ url: variant.image || product.image, name: variant.variantName || variant.name })
+                            }
+                          }}
+                        >
+                          {variant.image || product.image ? (
+                            <img 
+                              src={variant.image || product.image} 
+                              alt={variant.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package size={16} className="text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        {/* Variant Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-blue-500 font-bold">↳</span>
+                            <p className="font-medium text-gray-800 text-sm truncate">{variant.variantName || variant.name}</p>
+                          </div>
+                          <p className="text-xs text-gray-500">SKU: {variant.sku || '-'}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-primary font-bold text-sm">Rp {(variant.price || 0).toLocaleString('id-ID')}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              variant.stock === 0 ? 'bg-red-100 text-red-700' :
+                              variant.stock <= (variant.minStock || 5) ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
+                              Stok: {variant.stock || 0}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {displayProducts.length === 0 && (
@@ -771,6 +983,7 @@ export default function Products() {
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-14">Foto</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">SKU</th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-28">SKU Induk</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nama Produk</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-20">Kategori</th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase w-16">Tipe</th>
@@ -805,7 +1018,10 @@ export default function Products() {
                         ) : (
                           <div className="w-6"></div>
                         )}
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                        <div 
+                          className={`w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center ${product.image ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : ''}`}
+                          onClick={() => product.image && setPreviewImage({ url: product.image, name: product.name })}
+                        >
                           {product.image ? (
                             <img 
                               src={product.image} 
@@ -824,37 +1040,23 @@ export default function Products() {
                       </div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-600 truncate max-w-[96px]" title={product.sku || product.code}>
+                      <span className="truncate block">{product.sku || (product.source === 'shopee' ? '-' : product.code) || '-'}</span>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-500 truncate max-w-[112px]" title={product.parentSku || ''}>
                       {product.isGrouped ? (
-                        <span className="text-gray-400 italic text-xs">{product.variantCount} varian</span>
+                        <span className="text-blue-600 italic text-xs">{product.variantCount} varian</span>
                       ) : (
-                        <span className="truncate block">{product.sku || (product.source === 'shopee' ? '-' : product.code)}</span>
+                        <span className="truncate block">{product.parentSku || '-'}</span>
                       )}
                     </td>
                     <td className="px-2 py-2" onClick={() => product.isGrouped && toggleExpand(product.id)}>
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-gray-900 line-clamp-2">{product.name}</p>
-                          {product.source === 'shopee' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700 rounded">
-                              <Store size={10} />
-                              Shopee
-                            </span>
-                          )}
                           {product.isGrouped && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
                               {product.variantCount} Varian
                             </span>
-                          )}
-                          {/* Edit button - inline with product name */}
-                          {!product.isGrouped && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleEdit(product); }}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"
-                              title="Edit Produk"
-                            >
-                              <Edit size={12} />
-                              Edit
-                            </button>
                           )}
                         </div>
                       </div>
@@ -937,8 +1139,8 @@ export default function Products() {
                             <Edit size={14} />
                           </button>
                         )}
-                        {/* Delete button only for non-Shopee products */}
-                        {product.source !== 'shopee' && !product.isGrouped && (
+                        {/* Delete button for all products */}
+                        {!product.isGrouped && (
                           <button
                             onClick={() => handleDelete(product.id)}
                             className="text-red-600 hover:text-red-700 p-1"
@@ -947,41 +1149,25 @@ export default function Products() {
                             <Trash2 size={14} />
                           </button>
                         )}
-                        {/* Sync to Shopee button */}
-                        {product.source === 'shopee' && !product.isGrouped && (
-                          <button
-                            onClick={() => handleSyncToShopee(product)}
-                            className="text-green-600 hover:text-green-700 p-1"
-                            title="Update ke Shopee"
-                          >
-                            <RefreshCw size={14} />
-                          </button>
-                        )}
-                        {/* Link to Shopee for Shopee products */}
-                        {product.source === 'shopee' && (
-                          <a
-                            href={`https://shopee.co.id/product/${product.shopeeItemId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-orange-600 hover:text-orange-700 p-1"
-                            title="Lihat di Shopee"
-                          >
-                            <ExternalLink size={14} />
-                          </a>
-                        )}
                       </div>
                     </td>
                   </tr>
                   
                   {/* Variant Rows (shown when expanded) */}
-                  {product.isGrouped && expandedProducts[product.id] && product.variants.map((variant, idx) => (
+                  {product.isGrouped && expandedProducts[product.id] && product.variants.map((variant, idx) => {
+                    // Get variant image or fallback to parent product image
+                    const variantImage = variant.image || product.image || (product.photos && product.photos[0]) || null;
+                    return (
                     <tr key={variant.id} className="bg-blue-50/50 hover:bg-blue-100/70 border-l-4 border-blue-300">
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-1 pl-7">
-                          <div className="w-8 h-8 rounded overflow-hidden bg-white border-2 border-blue-200 flex items-center justify-center">
-                            {variant.image ? (
+                          <div 
+                            className={`w-8 h-8 rounded overflow-hidden bg-white border-2 border-blue-200 flex items-center justify-center ${variantImage ? 'cursor-pointer hover:ring-2 hover:ring-blue-400' : ''}`}
+                            onClick={() => variantImage && setPreviewImage({ url: variantImage, name: variant.variantName || variant.name })}
+                          >
+                            {variantImage ? (
                               <img 
-                                src={variant.image} 
+                                src={variantImage} 
                                 alt={variant.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -990,7 +1176,7 @@ export default function Products() {
                                 }}
                               />
                             ) : null}
-                            <div className={`w-full h-full items-center justify-center text-gray-400 ${variant.image ? 'hidden' : 'flex'}`}>
+                            <div className={`w-full h-full items-center justify-center text-gray-400 ${variantImage ? 'hidden' : 'flex'}`}>
                               <ImageIcon size={12} />
                             </div>
                           </div>
@@ -999,20 +1185,14 @@ export default function Products() {
                       <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-600 truncate max-w-[96px]" title={variant.sku}>
                         <span className="bg-white px-1.5 py-0.5 rounded border border-blue-200">{variant.sku || '-'}</span>
                       </td>
+                      <td className="px-2 py-2 whitespace-nowrap font-mono text-xs text-gray-500 truncate max-w-[112px]" title={product.sku || ''}>
+                        <span className="truncate block text-blue-500">{product.sku || '-'}</span>
+                      </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
                           <span className="text-blue-400 text-sm font-bold">↳</span>
                           <p className="text-sm font-medium text-gray-800">{variant.variantName || variant.name}</p>
                           <span className="text-xs text-gray-500 bg-white px-1.5 py-0.5 rounded border border-blue-200">Varian {idx + 1}</span>
-                          {/* Edit button - inline with variant name */}
-                          <button
-                            onClick={() => handleEdit(variant)}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-white hover:bg-blue-50 rounded border border-blue-200"
-                            title="Edit Varian"
-                          >
-                            <Edit size={10} />
-                            Edit
-                          </button>
                         </div>
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
@@ -1050,13 +1230,41 @@ export default function Products() {
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap text-right">
                         <div className="flex gap-1 justify-end">
+                          {/* Generate Barcode button for variants */}
+                          <button
+                            onClick={() => {
+                              setSelectedProductBarcode(variant)
+                              setShowBarcodeModal(true)
+                            }}
+                            className="text-purple-500 hover:text-purple-600 p-1"
+                            title="Generate Barcode"
+                          >
+                            <QrCode size={14} />
+                          </button>
                           {/* Edit button for variants */}
                           <button
-                            onClick={() => handleEdit(variant)}
+                            onClick={() => handleEditVariant(product, variant, idx)}
                             className="text-blue-500 hover:text-blue-600 p-1"
                             title="Edit Varian"
                           >
                             <Edit size={14} />
+                          </button>
+                          {/* Delete button for variants */}
+                          <button
+                            onClick={() => {
+                              if (confirm(`Hapus varian "${variant.variantName || variant.name}"?`)) {
+                                // Find parent product and remove this variant
+                                const parentProduct = products.find(p => p.id === product.id)
+                                if (parentProduct && parentProduct.variants) {
+                                  const updatedVariants = parentProduct.variants.filter(v => v.id !== variant.id && v.sku !== variant.sku)
+                                  updateProduct(parentProduct.id, { variants: updatedVariants })
+                                }
+                              }
+                            }}
+                            className="text-red-500 hover:text-red-600 p-1"
+                            title="Hapus Varian"
+                          >
+                            <Trash2 size={14} />
                           </button>
                           {/* Sync variant to Shopee */}
                           {variant.source === 'shopee' && (
@@ -1082,7 +1290,7 @@ export default function Products() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </>
               ))}
             </tbody>
@@ -1215,6 +1423,43 @@ export default function Products() {
           isSyncing={isSyncingToShopee}
         />
       )}
+
+      {/* Edit Variant Modal from Product List */}
+      {showEditVariantModal && editingVariantData && (
+        <AddVariantModal
+          productName={editingVariantData.parentProduct?.name || 'Produk'}
+          editingVariant={editingVariantData.variant}
+          onClose={() => {
+            setShowEditVariantModal(false)
+            setEditingVariantData(null)
+          }}
+          onAdd={() => {}}
+          onUpdate={handleUpdateVariant}
+        />
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30"
+          >
+            <X size={24} />
+          </button>
+          <div className="max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={previewImage.url} 
+              alt={previewImage.name}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            <p className="text-white text-center mt-3 text-sm">{previewImage.name}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1228,10 +1473,13 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
     ...product,
     // Handle both field names from different data sources
     costPrice: product.costPrice || product.cost || '',
-    price: product.price || product.sellingPrice || ''
+    price: product.price || product.sellingPrice || '',
+    // Initialize photos from existing image if photos not set
+    photos: product.photos || (product.image ? [product.image] : [])
   } : {
     sku: generateSKU(),
     name: '',
+    description: '',
     category: categories[0],
     costPrice: '',
     price: '',
@@ -1241,6 +1489,7 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
     barcode: generateBarcode(),
     isPackage: false,
     hasVariants: false,
+    parentSku: '',
     variants: [],
     photos: [],
     packageItems: []
@@ -1248,6 +1497,7 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
   const [showProductSearch, setShowProductSearch] = useState(false)
   const [productSearchTerm, setProductSearchTerm] = useState('')
   const [showVariantModal, setShowVariantModal] = useState(false)
+  const [editingVariantIndex, setEditingVariantIndex] = useState(null)
 
   // Fungsi untuk capitalize setiap kata
   const capitalizeWords = (str) => {
@@ -1342,7 +1592,8 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
       costPrice: calculatedCostPrice,
       price: calculatedPrice,
       stock: calculatedStock,
-      minStock: calculatedMinStock
+      minStock: calculatedMinStock,
+      image: formData.photos?.[0] || formData.image || ''
     }
     
     // Sync to Marketplace if enabled and product is from marketplace
@@ -1750,6 +2001,18 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
             </p>
           </div>
 
+          {/* Deskripsi Produk */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Deskripsi Produk</label>
+            <textarea
+              value={formData.description || ''}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="input min-h-[80px]"
+              placeholder="Deskripsi lengkap produk (opsional)"
+              rows={3}
+            />
+          </div>
+
           {/* Isi Paket - Tampil hanya jika Paket */}
           {formData.isPackage && (
             <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
@@ -1975,6 +2238,20 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
 
             {formData.hasVariants && (
               <div className="space-y-4">
+                {/* SKU Induk */}
+                <div>
+                  <label className="block text-sm font-medium text-indigo-900 mb-2">SKU Induk *</label>
+                  <input
+                    type="text"
+                    value={formData.parentSku || ''}
+                    onChange={(e) => setFormData({ ...formData, parentSku: e.target.value.toUpperCase() })}
+                    className="input w-full"
+                    placeholder="Contoh: CROSSOVER-91"
+                    required={formData.hasVariants}
+                  />
+                  <p className="text-xs text-indigo-600 mt-1">SKU Induk digunakan untuk mengelompokkan semua varian produk ini</p>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setShowVariantModal(true)}
@@ -1990,9 +2267,19 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                     <p className="text-sm font-medium text-indigo-900">Varian Tersedia ({formData.variants.length}):</p>
                     <div className="grid grid-cols-1 gap-2">
                       {formData.variants.map((variant, index) => (
-                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{variant.name}</p>
+                        <div key={index} className="flex items-center gap-3 bg-white p-3 rounded border">
+                          {/* Foto Varian */}
+                          <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                            {variant.image ? (
+                              <img src={variant.image} alt={variant.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                <ImageIcon size={20} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{variant.name}</p>
                             <p className="text-xs text-gray-500">SKU: {variant.sku} • Barcode: {variant.barcode}</p>
                           </div>
                           <div className="flex items-center gap-4">
@@ -2001,6 +2288,17 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
                               <p className="font-semibold">Harga: Rp {variant.price.toLocaleString('id-ID')}</p>
                               <p className="text-xs text-blue-600">Stok: {variant.stock}</p>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingVariantIndex(index)
+                                setShowVariantModal(true)
+                              }}
+                              className="text-blue-600 hover:text-blue-700"
+                              title="Edit Varian"
+                            >
+                              <Edit size={16} />
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -2089,16 +2387,7 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
           {/* Kategori dan Satuan */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Kategori *</label>
-                <button
-                  type="button"
-                  onClick={onManageCategories}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Kelola Kategori
-                </button>
-              </div>
+              <label className="block text-sm font-medium mb-2">Kategori *</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -2111,16 +2400,7 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
               </select>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Satuan *</label>
-                <button
-                  type="button"
-                  onClick={onManageUnits}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Kelola Satuan
-                </button>
-              </div>
+              <label className="block text-sm font-medium mb-2">Satuan *</label>
               <select
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
@@ -2293,13 +2573,28 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
         {showVariantModal && (
           <AddVariantModal
             productName={formData.name || 'Produk Baru'}
-            onClose={() => setShowVariantModal(false)}
+            editingVariant={editingVariantIndex !== null ? formData.variants[editingVariantIndex] : null}
+            onClose={() => {
+              setShowVariantModal(false)
+              setEditingVariantIndex(null)
+            }}
             onAdd={(variant) => {
               setFormData({
                 ...formData,
                 variants: [...(formData.variants || []), variant]
               })
               alert('Varian berhasil ditambahkan!')
+            }}
+            onUpdate={(variant) => {
+              const updatedVariants = [...formData.variants]
+              updatedVariants[editingVariantIndex] = variant
+              setFormData({
+                ...formData,
+                variants: updatedVariants
+              })
+              setEditingVariantIndex(null)
+              setShowVariantModal(false)
+              alert('Varian berhasil diupdate!')
             }}
           />
         )}
@@ -2311,7 +2606,10 @@ function ProductModal({ product, categories, onClose, onSubmit, onManageCategori
 function ManageCategoriesModal({ categories, onClose }) {
   const [categoryList, setCategoryList] = useState(categories)
   const [newCategory, setNewCategory] = useState('')
-  const { addCategory, setCategories } = useProductStore()
+  const [editingCategory, setEditingCategory] = useState(null)
+  const [editValue, setEditValue] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const { addCategory, setCategories, products } = useProductStore()
 
   const handleAdd = async () => {
     if (newCategory.trim()) {
@@ -2322,6 +2620,60 @@ function ManageCategoriesModal({ categories, onClose }) {
       } else {
         alert(result.error || 'Gagal menambah kategori')
       }
+    }
+  }
+
+  const handleEdit = (cat) => {
+    setEditingCategory(cat)
+    setEditValue(cat)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editValue.trim() || editValue.trim() === editingCategory) {
+      setEditingCategory(null)
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      const { firebaseDB } = await import('../lib/firebase')
+      const oldCategory = editingCategory
+      const newCategoryName = editValue.trim()
+      
+      // Replace old category with new one in category list
+      const newCategories = categoryList.map(c => c === oldCategory ? newCategoryName : c)
+      
+      // Save categories to Firebase
+      const result = await firebaseDB.set('categories', newCategories)
+      
+      if (result && result.success) {
+        // Update all products that use the old category
+        const productsToUpdate = products.filter(p => p.category === oldCategory)
+        console.log(`📦 Updating ${productsToUpdate.length} products from category "${oldCategory}" to "${newCategoryName}"`)
+        
+        // Update each product's category in Firebase
+        const updatePromises = productsToUpdate.map(product => 
+          firebaseDB.update(`products/${product.id}`, { 
+            category: newCategoryName,
+            updatedAt: new Date().toISOString()
+          })
+        )
+        
+        await Promise.all(updatePromises)
+        console.log(`✅ Updated ${productsToUpdate.length} products to new category`)
+        
+        setCategoryList(newCategories)
+        setCategories(newCategories)
+        setEditingCategory(null)
+        setEditValue('')
+      } else {
+        alert('Gagal mengubah kategori')
+      }
+    } catch (error) {
+      console.error('Error updating category:', error)
+      alert('Error: ' + error.message)
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -2399,14 +2751,57 @@ function ManageCategoriesModal({ categories, onClose }) {
             ) : (
               categoryList.map((cat) => (
                 <div key={cat} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                  <span className="font-medium text-base">{cat}</span>
-                  <button
-                    onClick={() => handleDelete(cat)}
-                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Hapus kategori"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  {editingCategory === cat ? (
+                    <div className="flex items-center gap-2 flex-1 mr-2">
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
+                        className="input flex-1 py-1"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleSaveEdit}
+                        disabled={isUpdating}
+                        className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                        title="Simpan"
+                      >
+                        {isUpdating ? (
+                          <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Check size={18} />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setEditingCategory(null)}
+                        className="p-1.5 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+                        title="Batal"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="font-medium text-base">{cat}</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleEdit(cat)}
+                          className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit kategori"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(cat)}
+                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus kategori"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))
             )}
@@ -2490,37 +2885,96 @@ function ManageUnitsModal({ onClose }) {
   )
 }
 
-function AddVariantModal({ onClose, onAdd, productName }) {
-  const [variantData, setVariantData] = useState({
+function AddVariantModal({ onClose, onAdd, onUpdate, productName, editingVariant }) {
+  const isEditMode = !!editingVariant
+  const [variantData, setVariantData] = useState(editingVariant ? {
+    name: editingVariant.name || '',
+    sku: editingVariant.sku || generateSKU(),
+    barcode: editingVariant.barcode || generateBarcode(),
+    costPrice: editingVariant.costPrice || '',
+    price: editingVariant.price || '',
+    stock: editingVariant.stock || '',
+    minStock: editingVariant.minStock || '',
+    image: editingVariant.image || ''
+  } : {
     name: '',
     sku: generateSKU(),
     barcode: generateBarcode(),
     costPrice: '',
     price: '',
     stock: '',
-    minStock: ''
+    minStock: '',
+    image: ''
   })
+
+  // Handle photo upload for variant
+  const handleVariantPhotoUpload = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setVariantData({ ...variantData, image: reader.result })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Handle camera photo for Android
+  const handleVariantCameraPhoto = async () => {
+    const result = await takePhoto('prompt')
+    if (result.success && result.dataUrl) {
+      setVariantData({ ...variantData, image: result.dataUrl })
+    } else if (result.error && result.error !== 'cancelled') {
+      alert('Gagal mengambil foto: ' + result.error)
+    }
+  }
+
+  // Remove variant photo
+  const removeVariantPhoto = () => {
+    setVariantData({ ...variantData, image: '' })
+  }
+
+  // Helper functions for this modal
+  const formatRupiah = (value) => {
+    const number = value.toString().replace(/\D/g, '')
+    return number.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  }
+
+  const parseRupiah = (value) => {
+    return parseInt(value.toString().replace(/\D/g, '')) || 0
+  }
+
+  const capitalizeWords = (str) => {
+    return str.replace(/\b\w/g, (char) => char.toUpperCase())
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onAdd({
+    const variantToSave = {
       ...variantData,
       costPrice: parseFloat(variantData.costPrice) || 0,
       price: parseFloat(variantData.price) || 0,
       stock: parseInt(variantData.stock) || 0,
-      minStock: parseInt(variantData.minStock) || 0
-    })
+      minStock: parseInt(variantData.minStock) || 0,
+      image: variantData.image || ''
+    }
     
-    // Reset for next variant
-    setVariantData({
-      name: '',
-      sku: generateSKU(),
-      barcode: generateBarcode(),
-      costPrice: '',
-      price: '',
-      stock: '',
-      minStock: ''
-    })
+    if (isEditMode && onUpdate) {
+      onUpdate(variantToSave)
+    } else {
+      onAdd(variantToSave)
+      // Reset for next variant
+      setVariantData({
+        name: '',
+        sku: generateSKU(),
+        barcode: generateBarcode(),
+        costPrice: '',
+        price: '',
+        stock: '',
+        minStock: '',
+        image: ''
+      })
+    }
   }
 
   return (
@@ -2528,7 +2982,7 @@ function AddVariantModal({ onClose, onAdd, productName }) {
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <div>
-            <h3 className="text-xl font-bold">Tambah Varian Produk</h3>
+            <h3 className="text-xl font-bold">{isEditMode ? 'Edit Varian Produk' : 'Tambah Varian Produk'}</h3>
             <p className="text-sm text-gray-600">{productName}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -2538,6 +2992,57 @@ function AddVariantModal({ onClose, onAdd, productName }) {
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            {/* Foto Varian */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2">Foto Varian</label>
+              <div className="flex items-start gap-4">
+                {variantData.image ? (
+                  <div className="relative group">
+                    <img
+                      src={variantData.image}
+                      alt="Foto Varian"
+                      className="w-24 h-24 object-cover rounded-lg border-2 border-indigo-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeVariantPhoto}
+                      className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-lg hover:bg-red-700"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  isAndroid ? (
+                    <button
+                      type="button"
+                      onClick={handleVariantCameraPhoto}
+                      className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-indigo-300 rounded-lg cursor-pointer hover:bg-indigo-50 transition-colors bg-white"
+                    >
+                      <Camera size={24} className="text-indigo-500 mb-1" />
+                      <span className="text-xs text-indigo-600">Ambil Foto</span>
+                    </button>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 hover:border-indigo-400 transition-colors">
+                      <ImageIcon size={24} className="text-gray-400 mb-1" />
+                      <span className="text-xs text-gray-500">Upload</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleVariantPhotoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )
+                )}
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">
+                    Upload foto khusus untuk varian ini (opsional).
+                    <br />Jika tidak diisi, akan menggunakan foto produk utama.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="col-span-2">
               <label className="block text-sm font-medium mb-2">
                 Nama Varian <span className="text-red-500">*</span>
@@ -2661,8 +3166,8 @@ function AddVariantModal({ onClose, onAdd, productName }) {
               Batal
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              <Plus size={20} />
-              Tambah Varian
+              {isEditMode ? <Edit size={20} /> : <Plus size={20} />}
+              {isEditMode ? 'Update Varian' : 'Tambah Varian'}
             </button>
           </div>
         </form>
