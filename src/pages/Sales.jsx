@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle, ScanLine, Wallet, PenTool, X, Camera } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Plus, Search, Edit, Trash2, Eye, Package, User, Calendar, Printer, TrendingUp, DollarSign, ShoppingCart, CheckCircle, ScanLine, Wallet, PenTool, X, Camera, Wifi } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { useProductStore } from '../store/productStore'
 import { useCustomerStore } from '../store/customerStore'
@@ -9,6 +9,7 @@ import { useTransactionStore } from '../store/transactionStore'
 import { useAuthStore } from '../store/authStore'
 import { useAccountStore } from '../store/accountStore'
 import { isAndroid } from '../utils/platform'
+import { firebaseDB } from '../lib/firebase'
 
 // Signature Pad Component
 function SignaturePad({ onSave, onClose, initialSignature }) {
@@ -988,6 +989,8 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
   const [showProductDropdown, setShowProductDropdown] = useState(false)
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [remoteScanning, setRemoteScanning] = useState(false)
+  const [lastRemoteScan, setLastRemoteScan] = useState(null)
   const dropdownRef = useRef(null)
 
   // Close dropdown when clicking outside
@@ -1001,6 +1004,46 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Listen for remote barcode scans from Android app
+  useEffect(() => {
+    if (!remoteScanning) return
+
+    const unsubscribe = firebaseDB.onValue('barcode_scans', (data) => {
+      if (!data) return
+      
+      // Find unprocessed scans
+      const scans = Object.values(data)
+      const unprocessedScan = scans.find(scan => !scan.processed && scan.target === 'sales_order')
+      
+      if (unprocessedScan && unprocessedScan.id !== lastRemoteScan) {
+        setLastRemoteScan(unprocessedScan.id)
+        
+        // Find product by barcode
+        const product = products.find(p => 
+          p.barcode === unprocessedScan.barcode ||
+          p.sku === unprocessedScan.barcode ||
+          p.code === unprocessedScan.barcode
+        )
+        
+        if (product) {
+          // Add product to order
+          addItemFromRemote(product)
+          // Play success sound or show notification
+          alert(`✅ Produk ditambahkan: ${product.name}`)
+        } else {
+          alert(`❌ Produk tidak ditemukan: ${unprocessedScan.barcode}`)
+        }
+        
+        // Mark as processed
+        firebaseDB.update(`barcode_scans/${unprocessedScan.id}`, { processed: true })
+      }
+    })
+
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [remoteScanning, products, lastRemoteScan])
 
   const filteredProducts = products.filter(p => 
     productSearch && (
@@ -1057,6 +1100,39 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
     setProductSearch('')
     setShowProductDropdown(false)
     setQuantity(1)
+  }
+
+  // Add item from remote scan (qty = 1)
+  const addItemFromRemote = (product) => {
+    if (!product) return
+
+    const existingItem = formData.items.find(i => i.id === product.id)
+    if (existingItem) {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(i => 
+          i.id === product.id ? { ...i, qty: i.qty + 1 } : i
+        )
+      }))
+    } else {
+      const costPrice = product.costPrice || 0
+      const minPrice = Math.ceil(costPrice * 1.15)
+      const customerPrice = getCustomerPrice(product, formData.customer)
+      
+      setFormData(prev => ({
+        ...prev,
+        items: [...prev.items, {
+          id: product.id,
+          name: product.name,
+          sku: product.sku || product.code,
+          costPrice: costPrice,
+          price: customerPrice,
+          minPrice: minPrice,
+          qty: 1,
+          isPackage: product.isPackage
+        }]
+      }))
+    }
   }
 
   const updateItemPrice = (itemId, newPrice) => {
@@ -1233,7 +1309,26 @@ function SalesOrderModal({ sale, products, customers, onClose, onSubmit }) {
           </div>
 
           <div className="border-t pt-4">
-            <h4 className="font-semibold mb-3">Tambah Produk</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold">Tambah Produk</h4>
+              <button
+                type="button"
+                onClick={() => setRemoteScanning(!remoteScanning)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  remoteScanning 
+                    ? 'bg-green-100 text-green-700 border border-green-300' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Wifi size={16} className={remoteScanning ? 'animate-pulse' : ''} />
+                {remoteScanning ? 'Remote Scan Aktif' : 'Remote Scan'}
+              </button>
+            </div>
+            {remoteScanning && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3 text-sm">
+                <p className="text-green-700">📱 Buka aplikasi <strong>Scan Produk</strong> di Android, pilih <strong>"Scan Sales Order"</strong></p>
+              </div>
+            )}
             <div className="flex gap-2 relative" ref={dropdownRef}>
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10" size={20} />
