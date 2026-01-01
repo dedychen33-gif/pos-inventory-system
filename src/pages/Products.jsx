@@ -35,7 +35,7 @@ async function updateProductToShopee(product, updates, stores) {
   }
   
   try {
-    const res = await fetch(`${API_BASE}/api/shopee/update-product`, {
+    const res = await fetch(`${API_BASE}/api/shopee?action=update-product`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

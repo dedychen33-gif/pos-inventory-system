@@ -264,7 +264,7 @@ export default function Marketplace() {
         redirect: `${REDIRECT_DOMAIN}/marketplace/callback`
       });
       
-      const res = await fetch(`${API_BASE}/api/shopee/auth-url?${params}`);
+      const res = await fetch(`${API_BASE}/api/shopee?action=auth-url&${params}`);
       const data = await res.json();
       
       if (data.success && data.authUrl) {
@@ -289,7 +289,7 @@ export default function Marketplace() {
     
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/shopee/token?action=refresh_token`, {
+      const res = await fetch(`${API_BASE}/api/shopee?action=token&tokenAction=refresh_token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -352,7 +352,7 @@ export default function Marketplace() {
         fetch_all: 'true' // Fetch all products with pagination
       });
       
-      const res = await fetch(`${API_BASE}/api/shopee/products?${params}`);
+      const res = await fetch(`${API_BASE}/api/shopee?action=products&${params}`);
       const data = await res.json();
       
       if (data.success && data.data.response) {
@@ -486,7 +486,7 @@ export default function Marketplace() {
         fetch_all: 'true' // Fetch all orders with pagination
       });
       
-      const res = await fetch(`${API_BASE}/api/shopee/orders?${params}`);
+      const res = await fetch(`${API_BASE}/api/shopee?action=orders&${params}`);
       const data = await res.json();
       
       if (data.success && data.data.response) {
@@ -534,7 +534,7 @@ export default function Marketplace() {
         fetch_all: 'true'
       });
       
-      const res = await fetch(`${API_BASE}/api/shopee/returns?${params}`);
+      const res = await fetch(`${API_BASE}/api/shopee?action=returns&${params}`);
       const data = await res.json();
       
       console.log('Returns API response:', data);

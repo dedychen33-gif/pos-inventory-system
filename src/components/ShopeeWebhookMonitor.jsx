@@ -62,7 +62,7 @@ export default function ShopeeWebhookMonitor() {
   const handleConnectShop = async () => {
     try {
       setSyncing(true);
-      const response = await fetch('/api/shopee/auth-url', {
+      const response = await fetch('/api/shopee?action=auth-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,7 +98,7 @@ export default function ShopeeWebhookMonitor() {
       const now = Math.floor(Date.now() / 1000);
       const fifteenDaysAgo = now - (15 * 24 * 60 * 60);
       
-      const response = await fetch(`/api/shopee/orders?partner_id=${shopeeCredentials?.partnerId}&shop_id=${shopId}&access_token=${accessToken}&fetch_all=true&fetch_all_statuses=true&time_from=${fifteenDaysAgo}&time_to=${now}`, {
+      const response = await fetch(`/api/shopee?action=orders&partner_id=${shopeeCredentials?.partnerId}&shop_id=${shopId}&access_token=${accessToken}&fetch_all=true&fetch_all_statuses=true&time_from=${fifteenDaysAgo}&time_to=${now}`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',

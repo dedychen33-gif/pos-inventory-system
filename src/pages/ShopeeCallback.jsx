@@ -32,7 +32,7 @@ export default function ShopeeCallback() {
       try {
         setMessage('Menukar code untuk access token...');
         
-        const response = await fetch('/api/shopee/token?action=get_token', {
+        const response = await fetch('/api/shopee?action=token&tokenAction=get_token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
