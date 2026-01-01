@@ -267,6 +267,23 @@ async function handleOrders(req, res) {
   return res.status(200).json({ success: true, data: { response: { order_list: allOrders, total_count: allOrders.length } } });
 }
 
+// RETURNS: Get returns from Shopee
+async function handleReturns(req, res) {
+  const { partner_id, partner_key, shop_id, access_token } = req.query;
+  if (!partner_id || !partner_key || !shop_id || !access_token) {
+    return res.status(400).json({ success: false, error: 'Missing params' });
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const apiPath = '/api/v2/returns/get_return_list';
+  const sign = generateSignatureV2(partner_id, partner_key, apiPath, timestamp, access_token, shop_id);
+  const queryParams = new URLSearchParams({ partner_id, timestamp, sign, shop_id, access_token, page_no: '0', page_size: '50' });
+  const options = { hostname: 'partner.shopeemobile.com', path: `${apiPath}?${queryParams}`, method: 'GET', headers: { 'Content-Type': 'application/json' } };
+  const result = await makeRequest(options);
+
+  return res.status(200).json({ success: true, data: result });
+}
+
 // ============ MAIN HANDLER ============
 
 export default async function handler(req, res) {
@@ -286,6 +303,7 @@ export default async function handler(req, res) {
       case 'products': return await handleProducts(req, res);
       case 'update-product': return await handleUpdateProduct(req, res);
       case 'orders': return await handleOrders(req, res);
+      case 'returns': return await handleReturns(req, res);
       default:
         return res.status(400).json({ 
           success: false, 
