@@ -23,6 +23,8 @@ import Debts from './pages/Debts'
 import ScanResi from './pages/ScanResi'
 import ShopeeWebhookMonitor from './components/ShopeeWebhookMonitor'
 import ShopeeCallback from './pages/ShopeeCallback'
+import Marketplace from './pages/Marketplace'
+import MarketplaceOrders from './pages/MarketplaceOrders'
 
 function App() {
   const { isAuthenticated, user, resetToDefaultAdmin } = useAuthStore()
@@ -64,6 +66,8 @@ function App() {
                     <Route path="/expenses" element={<Expenses />} />
                     <Route path="/debts" element={<Debts />} />
                     <Route path="/shopee" element={<ShopeeWebhookMonitor />} />
+                    <Route path="/marketplace" element={<Marketplace />} />
+                    <Route path="/marketplace/orders" element={<MarketplaceOrders />} />
                     <Route path="/marketplace/callback" element={<ShopeeCallback />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
