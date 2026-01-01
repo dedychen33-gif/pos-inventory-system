@@ -47,6 +47,7 @@ const allMenuItems = [
   { path: '/debts', icon: CreditCard, label: 'Hutang Piutang', permission: 'reports' },
   { path: '/reports', icon: FileText, label: 'Laporan', permission: 'reports' },
   { path: '/shopee', icon: ShoppingBag, label: 'Shopee Order', permission: 'sales' },
+  { path: '/marketplace', icon: Package, label: 'Produk Shopee', permission: 'products' },
   { path: '/settings', icon: Settings, label: 'Pengaturan', permission: 'settings' },
 ]
 

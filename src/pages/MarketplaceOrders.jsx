@@ -8,7 +8,7 @@ import { useTransactionStore } from '../store/transactionStore';
 import { useMarketplaceStore, PLATFORM_INFO } from '../store/marketplaceStore';
 import { shopeeApi } from '../services/marketplaceApi';
 
-export default function MarketplaceOrders() {
+export default function MarketplaceOrders({ embedded = false }) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStore, setFilterStore] = useState('all');

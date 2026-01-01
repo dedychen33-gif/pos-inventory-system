@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import shopeeWebhookService from '../services/shopeeWebhookService';
 import { useSettingsStore } from '../store/settingsStore';
+import { useTransactionStore } from '../store/transactionStore';
+
+// Lazy load MarketplaceOrders for Pesanan tab
+const MarketplaceOrders = lazy(() => import('../pages/MarketplaceOrders'));
 
 export default function ShopeeWebhookMonitor() {
   const [stats, setStats] = useState(null);
@@ -304,6 +309,16 @@ export default function ShopeeWebhookMonitor() {
             >
               Sync Queue
             </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'orders'
+                  ? 'border-b-2 border-orange-600 text-orange-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Pesanan
+            </button>
           </div>
         </div>
 
@@ -417,6 +432,12 @@ export default function ShopeeWebhookMonitor() {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'orders' && (
+            <Suspense fallback={<div className="text-center py-8">Loading orders...</div>}>
+              <MarketplaceOrders embedded={true} />
+            </Suspense>
           )}
         </div>
       </div>
