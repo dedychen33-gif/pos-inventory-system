@@ -51,9 +51,8 @@ export const shopeeApi = {
       const baseUrl = 'https://pos-inventory-system-gamma.vercel.app';
       const redirectUrl = `${baseUrl}/marketplace/callback?platform=shopee&store_id=${store.id}`;
       
-      // Use correct endpoint path based on environment
-      // Local: /auth/shopee/url, Vercel: /auth-url
-      const endpoint = isProduction ? '/auth-url' : '/auth/shopee/url';
+      // Use merged API with action parameter
+      const endpoint = '?action=auth-url';
       
       // Send credentials to backend for signature generation
       const result = await api.post(endpoint, {
@@ -71,8 +70,8 @@ export const shopeeApi = {
   // Exchange code for access token
   getToken: async (store, code) => {
     const api = createApiInstance('shopee');
-    // Vercel API expects action=get_token as query param
-    const endpoint = isProduction ? '/token?action=get_token' : '/auth/shopee/callback';
+    // Merged API with action parameter
+    const endpoint = '?action=token&tokenAction=get_token';
     return api.post(endpoint, {
       code,
       shop_id: store.shopId,
@@ -84,7 +83,7 @@ export const shopeeApi = {
   // Refresh access token
   refreshToken: async (store) => {
     const api = createApiInstance('shopee');
-    return api.post('/auth/shopee/refresh', {
+    return api.post('?action=token&tokenAction=refresh_token', {
       shop_id: store.shopId,
       partner_id: store.credentials.partnerId,
       refresh_token: store.credentials.refreshToken,
@@ -108,7 +107,7 @@ export const shopeeApi = {
       const api = createApiInstance('shopee', 180000); // 3 min timeout for large catalogs
       // Use GET with query params for Vercel API
       // Don't skip models - we need variants data for dropdown display
-      const result = await api.get('/products', {
+      const result = await api.get('?action=products', {
         params: {
           shop_id: store.shopId,
           access_token: store.credentials?.accessToken,
@@ -155,7 +154,7 @@ export const shopeeApi = {
       const api = createApiInstance('shopee', 120000); // 2 min timeout for orders
       // Use GET with query params for Vercel API
       // Fetch orders without fetch_all_statuses to avoid timeout
-      const result = await api.get('/orders', {
+      const result = await api.get('?action=orders', {
         params: {
           shop_id: store.shopId,
           access_token: store.credentials?.accessToken,
@@ -189,7 +188,7 @@ export const shopeeApi = {
   syncReturns: async (store) => {
     try {
       const api = createApiInstance('shopee', 60000);
-      const result = await api.get('/returns', {
+      const result = await api.get('?action=returns', {
         params: {
           shop_id: store.shopId,
           access_token: store.credentials?.accessToken,
@@ -262,7 +261,7 @@ export const shopeeApi = {
   updateProduct: async (store, itemId, modelId, updates) => {
     try {
       const api = createApiInstance('shopee');
-      const endpoint = isProduction ? '/update-product' : '/products/update';
+      const endpoint = '?action=update-product';
       
       const payload = {
         shop_id: store.shopId,
@@ -379,7 +378,7 @@ export const lazadaApi = {
   syncProducts: async (store) => {
     try {
       const api = createApiInstance('lazada', 180000); // 3 min timeout for large catalogs
-      const result = await api.get('/products', {
+      const result = await api.get('?action=products', {
         params: {
           app_key: store.credentials?.appKey,
           app_secret: store.credentials?.appSecret,
@@ -420,7 +419,7 @@ export const lazadaApi = {
   syncOrders: async (store, dateRange = {}) => {
     try {
       const api = createApiInstance('lazada', 120000);
-      const result = await api.get('/orders', {
+      const result = await api.get('?action=orders', {
         params: {
           app_key: store.credentials?.appKey,
           app_secret: store.credentials?.appSecret,
@@ -513,7 +512,7 @@ export const lazadaApi = {
       // Try to fetch products to test connection
       if (store.credentials?.accessToken) {
         const api = createApiInstance('lazada', 10000);
-        const result = await api.get('/products', {
+        const result = await api.get('?action=products', {
           params: {
             app_key: store.credentials?.appKey,
             app_secret: store.credentials?.appSecret,
