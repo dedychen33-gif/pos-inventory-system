@@ -171,6 +171,8 @@ export default async function handler(req, res) {
       // Use priority statuses by default, all statuses only if explicitly requested
       const statusesToFetch = fetchAllStatuses ? ALL_STATUSES : (orderStatus === 'ALL' ? PRIORITY_STATUSES : [orderStatus]);
       
+      let debugInfo = [];
+      
       for (const status of statusesToFetch) {
         let hasMore = true;
         cursor = '';
@@ -179,9 +181,18 @@ export default async function handler(req, res) {
         while (hasMore && statusCount < maxOrdersPerStatus) {
           const result = await getOrderList(partnerId, partnerKey, shopId, accessToken, timeFrom, timeTo, pageSize, status, cursor);
           
+          // Log full response for debugging
+          debugInfo.push({
+            status,
+            shopee_error: result.error || null,
+            shopee_message: result.message || null,
+            request_id: result.request_id || null,
+            order_count: result.response?.order_list?.length || 0
+          });
+          
           if (result.error) {
             // Skip this status if error, continue to next
-            console.log(`Error fetching status ${status}:`, result.message);
+            console.log(`Error fetching status ${status}:`, result.error, result.message);
             hasMore = false;
             continue;
           }
@@ -224,6 +235,13 @@ export default async function handler(req, res) {
             status_summary: statusSummary,
             more: false
           }
+        },
+        debug: {
+          shop_id_used: shopId,
+          partner_id_used: partnerId,
+          time_range: { from: new Date(timeFrom * 1000).toISOString(), to: new Date(timeTo * 1000).toISOString() },
+          statuses_fetched: statusesToFetch,
+          api_calls: debugInfo
         },
         timestamp: now
       });

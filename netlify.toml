@@ -1,6 +1,46 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["node_modules/**"]
+
+[[redirects]]
+  from = "/api/shopee/products"
+  to = "/.netlify/functions/shopee-products"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/update-product"
+  to = "/.netlify/functions/shopee-update-product"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/orders"
+  to = "/.netlify/functions/shopee-orders"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/token"
+  to = "/.netlify/functions/shopee-token"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/auth-url"
+  to = "/.netlify/functions/shopee-auth-url"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/auto-refresh"
+  to = "/.netlify/functions/shopee-auto-refresh"
+  status = 200
+
+[[redirects]]
+  from = "/api/shopee/webhook"
+  to = "/.netlify/functions/shopee-webhook"
+  status = 200
 
 [[redirects]]
   from = "/*"
@@ -9,3 +49,5 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--legacy-peer-deps"
+  SHARP_IGNORE_GLOBAL_LIBVIPS = "1"

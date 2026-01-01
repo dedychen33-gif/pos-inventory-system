@@ -94,11 +94,11 @@ export default function ShopeeWebhookMonitor() {
         return;
       }
 
-      // Time range: 30 days
+      // Time range: 15 days (Shopee API limit)
       const now = Math.floor(Date.now() / 1000);
-      const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
+      const fifteenDaysAgo = now - (15 * 24 * 60 * 60);
       
-      const response = await fetch(`/api/shopee/orders?partner_id=${shopeeCredentials?.partnerId}&shop_id=${shopId}&access_token=${accessToken}&fetch_all=true&fetch_all_statuses=true&time_from=${thirtyDaysAgo}&time_to=${now}`, {
+      const response = await fetch(`/api/shopee/orders?partner_id=${shopeeCredentials?.partnerId}&shop_id=${shopId}&access_token=${accessToken}&fetch_all=true&fetch_all_statuses=true&time_from=${fifteenDaysAgo}&time_to=${now}`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',
@@ -107,10 +107,16 @@ export default function ShopeeWebhookMonitor() {
       });
       
       const data = await response.json();
-      console.log('Shopee orders response:', data);
-      console.log('Response data:', data.data);
-      console.log('Response order_list:', data.data?.response?.order_list);
-      console.log('Status summary:', data.data?.response?.status_summary);
+      console.log('=== SHOPEE API DEBUG ===');
+      console.log('Full response:', JSON.stringify(data, null, 2));
+      console.log('Debug info:', data.debug);
+      console.log('API calls result:', data.debug?.api_calls);
+      console.log('Shop ID used:', data.debug?.shop_id_used);
+      console.log('Partner ID used:', data.debug?.partner_id_used);
+      console.log('Time range:', data.debug?.time_range);
+      console.log('Error code:', data.data?.error);
+      console.log('Error message:', data.data?.message);
+      console.log('========================');
       
       if (data.success) {
         const orders = data.data?.response?.order_list || data.orders || [];
@@ -178,13 +184,27 @@ export default function ShopeeWebhookMonitor() {
               {syncing ? 'Loading...' : '🔗 Hubungkan Toko'}
             </button>
           ) : (
-            <button
-              onClick={handleSyncOrders}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-              disabled={syncing}
-            >
-              {syncing ? 'Syncing...' : '📥 Sync Pesanan'}
-            </button>
+            <>
+              <button
+                onClick={handleSyncOrders}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                disabled={syncing}
+              >
+                {syncing ? 'Syncing...' : '📥 Sync Pesanan'}
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('shopee_access_token');
+                  localStorage.removeItem('shopee_refresh_token');
+                  localStorage.removeItem('shopee_shop_id');
+                  alert('Token dihapus. Klik "Hubungkan Toko" untuk connect ulang.');
+                  window.location.reload();
+                }}
+                className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+              >
+                🔄 Re-connect
+              </button>
+            </>
           )}
           <button
             onClick={loadData}
